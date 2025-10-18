@@ -3,18 +3,20 @@
 """
 import flet as ft
 from typing import Callable
-from components import ConfirmDialog, DataTable
+from components import DataTable
+from dialogs import show_confirm_dialog
 from settings.config import PRIMARY_COLOR
 
 
 class TeachersView(ft.Container):
     """Представление для управления воспитателями"""
     
-    def __init__(self, db, on_refresh: Callable = None):
+    def __init__(self, db, on_refresh: Callable = None, page=None):
         super().__init__()
         self.db = db
         self.on_refresh = on_refresh
         self.selected_teacher = None
+        self.page = page
         
         # Поля формы
         self.last_name_field = ft.TextField(
@@ -149,25 +151,36 @@ class TeachersView(ft.Container):
     
     def delete_teacher(self, teacher_id: str):
         """Удалить воспитателя"""
-        def confirm_delete(confirmed):
-            if confirmed:
-                try:
-                    self.db.delete_teacher(int(teacher_id))
-                    self.load_teachers()
-                    if self.on_refresh:
-                        self.on_refresh()
-                    self.show_success("Воспитатель успешно удален")
-                except Exception as ex:
-                    self.show_error(f"Ошибка при удалении: {str(ex)}")
-        
-        dialog = ConfirmDialog(
+        teacher = self.db.get_teacher_by_id(int(teacher_id))
+        if not teacher:
+            self.show_error("Воспитатель не найден")
+            return
+
+        def on_yes(e):
+            try:
+                groups = [g for g in self.db.get_all_groups() if g['teacher_id'] == int(teacher_id)]
+                if groups:
+                    group_names = ", ".join(g['group_name'] for g in groups)
+                    self.show_error(
+                        f"Невозможно удалить воспитателя, так как он закреплен за группами: {group_names}. "
+                        "Сначала открепите воспитателя от групп."
+                    )
+                    return
+                self.db.delete_teacher(int(teacher_id))
+                self.load_teachers()
+                if self.on_refresh:
+                    self.on_refresh()
+                self.show_success(f"Воспитатель {teacher['full_name']} успешно удален")
+            except Exception as ex:
+                self.show_error(f"Ошибка при удалении воспитателя: {str(ex)}")
+
+        show_confirm_dialog(
+            self.page,
             title="Удаление воспитателя",
-            content="Вы уверены, что хотите удалить этого воспитателя?",
-            on_confirm=confirm_delete
+            content=f"Вы уверены, что хотите удалить воспитателя {teacher['full_name']}?",
+            on_yes=on_yes,
+            adaptive=True
         )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
     
     def save_teacher(self, e):
         """Сохранить воспитателя"""

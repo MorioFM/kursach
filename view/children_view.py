@@ -7,6 +7,7 @@ from typing import Callable
 from settings.models import format_date
 from datetime import date # Import date for age calculation
 from components import ConfirmDialog, DataTable, SearchBar
+from dialogs import show_confirm_dialog
 from settings.config import GENDERS
 
 
@@ -187,21 +188,22 @@ class ChildrenView(ft.Container):
     
     def delete_child(self, child_id: str):
         """Удалить ребенка"""
-        def confirm_delete(confirmed):
-            if confirmed:
+        def on_yes(e):
+            try:
                 self.db.delete_child(int(child_id))
                 self.load_children(self.search_query)
                 if self.on_refresh:
                     self.on_refresh()
-        
-        dialog = ConfirmDialog(
+            except Exception as ex:
+                self.show_error(f"Ошибка при удалении: {str(ex)}")
+
+        show_confirm_dialog(
+            self.page,
             title="Удаление ребенка",
             content="Вы уверены, что хотите удалить этого ребенка?",
-            on_confirm=confirm_delete
+            on_yes=on_yes,
+            adaptive=True,
         )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
     
     def save_child(self, e):
         """Сохранить ребенка"""

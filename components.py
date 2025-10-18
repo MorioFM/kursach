@@ -27,8 +27,10 @@ class ConfirmDialog(ft.AlertDialog):
         self.page.update()
     
     def confirm_and_close(self, on_confirm: Callable):
-        on_confirm()
+        on_confirm(True)  # Передаем True как параметр confirmed
         self.close()
+        if self.page:
+            self.page.update()
 
 
 class InfoCard(ft.Container):
@@ -101,12 +103,15 @@ class DataTable(ft.Container):
                     )
                 
                 if self.on_delete:
+                    def delete_handler(_e, rid=row_id):
+                        print(f"Удаление: {rid}")
+                        self.on_delete(rid)
                     actions.controls.append(
                         ft.IconButton(
                             icon=ft.Icons.DELETE,
                             icon_color=ft.Colors.RED,
                             tooltip="Удалить",
-                            on_click=lambda e, rid=row_id: self.on_delete(rid)
+                            on_click=delete_handler
                         )
                     )
                 

@@ -3,7 +3,8 @@
 """
 import flet as ft
 from typing import Callable
-from components import ConfirmDialog, DataTable, InfoCard
+from components import DataTable, InfoCard
+from dialogs import show_confirm_dialog
 from settings.config import AGE_CATEGORIES
 
 
@@ -153,25 +154,23 @@ class GroupsView(ft.Container):
     
     def delete_group(self, group_id: str):
         """Удалить группу"""
-        def confirm_delete(confirmed):
-            if confirmed:
-                try:
-                    self.db.delete_group(int(group_id))
-                    self.load_groups()
-                    self.load_stats()
-                    if self.on_refresh:
-                        self.on_refresh()
-                except Exception as ex:
-                    self.show_error(f"Ошибка при удалении: {str(ex)}")
-        
-        dialog = ConfirmDialog(
+        def on_yes(e):
+            try:
+                self.db.delete_group(int(group_id))
+                self.load_groups()
+                self.load_stats()
+                if self.on_refresh:
+                    self.on_refresh()
+            except Exception as ex:
+                self.show_error(f"Ошибка при удалении: {str(ex)}")
+
+        show_confirm_dialog(
+            self.page,
             title="Удаление группы",
             content="Вы уверены, что хотите удалить эту группу? Все дети будут откреплены от группы.",
-            on_confirm=confirm_delete
+            on_yes=on_yes,
+            adaptive=True,
         )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
     
     def save_group(self, e):
         """Сохранить группу"""
