@@ -34,6 +34,20 @@ class GroupsView(ft.Container):
             options=[]
         )
 
+        # Список детей для назначения в группу
+        self.children_list_view = ft.ListView(expand=True, spacing=5)
+        self.children_container = ft.Container(
+            content=ft.Column([
+                ft.Text("Дети в группе", weight=ft.FontWeight.BOLD),
+                self.children_list_view
+            ]),
+            padding=10,
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=5,
+            height=200,
+            margin=ft.margin.only(top=10)
+        )
+
         # Кнопки формы
         self.save_button = ft.ElevatedButton(
             "Сохранить",
@@ -53,6 +67,7 @@ class GroupsView(ft.Container):
                 self.group_name_field,
                 self.age_category_dropdown,
                 self.teacher_dropdown,
+                self.children_container,
                 ft.Row([
                     self.save_button,
                     self.cancel_button
@@ -66,14 +81,13 @@ class GroupsView(ft.Container):
         
         # Таблица
         self.data_table = DataTable(
-            columns=["ID", "Название", "Возрастная категория", "Воспитатель", "Кол-во детей"],
+            # Убираем "ID" из видимых столбцов
+            columns=["№", "Название", "Возрастная категория", "Воспитатель", "Кол-во детей"],
+            # Убираем неработающий аргумент hide_columns
             rows=[],
             on_edit=self.edit_group,
             on_delete=self.delete_group
         )
-        
-        # Статистика
-        self.stats_container = ft.Row(spacing=20, wrap=True)
         
         # Кнопка добавления
         add_button = ft.ElevatedButton(
@@ -82,18 +96,12 @@ class GroupsView(ft.Container):
             on_click=self.show_add_form
         )
         
-        # Загружаем данные
-        self.load_teachers()
-        self.load_groups()
-        self.load_stats()
-        
         self.content = ft.Column([
             ft.Row([
                 ft.Text("Группы", size=24, weight=ft.FontWeight.BOLD),
                 add_button
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             self.form_container,
-            self.stats_container,
             self.data_table
         ], spacing=20, expand=True)
     
@@ -102,30 +110,30 @@ class GroupsView(ft.Container):
         groups = self.db.get_all_groups()
         
         rows = []
-        for group in groups:
+        for i, group in enumerate(groups, 1):
             teacher_name = group.get('teacher_name', 'Не назначен')
-            rows.append([
-                str(group['group_id']),
-                group['group_name'],
-                AGE_CATEGORIES.get(group['age_category'], group['age_category']),
-                teacher_name,
-                str(group.get('children_count', 0))
-            ])
+            
+            # Получаем актуальное количество детей в группе
+            try:
+                children_in_group = self.db.get_children_by_group(group['group_id'])
+                children_count = len(children_in_group)
+            except Exception:
+                # Если метод не найден или произошла ошибка, используем старое значение
+                children_count = group.get('children_count', 0)
+
+            # Передаем данные в виде словаря: id для операций и values для отображения
+            rows.append({
+                "id": group['group_id'],
+                "values": [
+                    str(i),             # №
+                    group['group_name'], # Название
+                    AGE_CATEGORIES.get(group['age_category'], group['age_category']), # Категория
+                    teacher_name,       # Воспитатель
+                    str(children_count) # Кол-во детей
+                ]
+            })
         
         self.data_table.set_rows(rows)
-        if self.page:
-            self.update()
-    
-    def load_stats(self):
-        """Загрузка статистики"""
-        stats = self.db.get_statistics()
-        
-        self.stats_container.controls = [
-            InfoCard("Всего групп", str(stats['total_groups']), ft.Icons.GROUPS),
-            InfoCard("Всего детей", str(stats['total_children']), ft.Icons.CHILD_CARE),
-            InfoCard("Средний возраст", f"{stats['average_age']:.1f} лет", ft.Icons.CAKE)
-        ]
-        
         if self.page:
             self.update()
     
@@ -136,6 +144,7 @@ class GroupsView(ft.Container):
         self.load_teachers()
         self.form_container.content.controls[0].value = "Добавить группу"
         self.form_container.visible = True
+        self._load_children_for_form()
         self.update()
     
     def edit_group(self, group_id: str):
@@ -148,6 +157,7 @@ class GroupsView(ft.Container):
             self.teacher_dropdown.value = str(group['teacher_id']) if group['teacher_id'] else "0"
             
             self.load_teachers()
+            self._load_children_for_form(group_id=int(group_id))
             self.form_container.content.controls[0].value = "Редактировать группу"
             self.form_container.visible = True
             self.update()
@@ -158,7 +168,6 @@ class GroupsView(ft.Container):
             try:
                 self.db.delete_group(int(group_id))
                 self.load_groups()
-                self.load_stats()
                 if self.on_refresh:
                     self.on_refresh()
             except Exception as ex:
@@ -187,25 +196,31 @@ class GroupsView(ft.Container):
             if self.teacher_dropdown.value and self.teacher_dropdown.value != "0":
                 teacher_id = int(self.teacher_dropdown.value)
             
+            new_group_id = None
             if self.selected_group:
                 # Обновление
+                group_id = self.selected_group['group_id']
                 self.db.update_group(
-                    self.selected_group['group_id'],
+                    group_id,
                     group_name=self.group_name_field.value,
                     age_category=self.age_category_dropdown.value,
                     teacher_id=teacher_id
                 )
+                new_group_id = group_id
             else:
                 # Добавление
-                self.db.add_group(
+                new_group_id = self.db.add_group(
                     group_name=self.group_name_field.value,
                     age_category=self.age_category_dropdown.value,
                     teacher_id=teacher_id
                 )
 
+            # Обновляем состав группы
+            if new_group_id:
+                self._update_group_children(new_group_id)
+
             self.form_container.visible = False
             self.load_groups()
-            self.load_stats()
             if self.on_refresh:
                 self.on_refresh()
             self.update()
@@ -224,6 +239,7 @@ class GroupsView(ft.Container):
         self.group_name_field.value = ""
         self.age_category_dropdown.value = None
         self.teacher_dropdown.value = "0"
+        self.children_list_view.controls.clear()
 
     def load_teachers(self):
         """Загрузка списка воспитателей для выпадающего списка"""
@@ -238,6 +254,53 @@ class GroupsView(ft.Container):
         if self.page:
             self.update()
     
+    def _load_children_for_form(self, group_id: int | None = None):
+        """Загружает список детей в форму для выбора."""
+        self.children_list_view.controls.clear()
+        all_children = self.db.get_all_children()
+        
+        children_in_group_ids = []
+        if group_id:
+            # Предполагаем, что есть метод для получения детей по группе
+            children_in_group = self.db.get_children_by_group(group_id)
+            children_in_group_ids = [c['child_id'] for c in children_in_group]
+
+        for child in all_children:
+            # Показываем только детей без группы или детей из текущей редактируемой группы
+            if child.get('group_id') is None or child.get('child_id') in children_in_group_ids:
+                # Формируем полное имя из частей, чтобы избежать ошибки
+                last_name = child.get('last_name', '')
+                first_name = child.get('first_name', '')
+                middle_name = child.get('middle_name', '')
+                full_name = f"{last_name} {first_name} {middle_name}".strip()
+                
+                checkbox = ft.Checkbox(
+                    label=full_name,
+                    value=(child['child_id'] in children_in_group_ids),
+                    data=child['child_id']
+                )
+                self.children_list_view.controls.append(checkbox)
+
+    def _update_group_children(self, group_id: int):
+        """Обновляет состав детей в группе на основе выбора в форме."""
+        selected_child_ids = {
+            cb.data for cb in self.children_list_view.controls if cb.value
+        }
+        
+        # Получаем текущий список детей в группе
+        current_children_in_group = self.db.get_children_by_group(group_id)
+        current_child_ids = {c['child_id'] for c in current_children_in_group}
+
+        # Дети, которых нужно добавить
+        to_add = selected_child_ids - current_child_ids
+        for child_id in to_add:
+            self._assign_child(child_id, group_id)
+
+        # Дети, которых нужно убрать
+        to_remove = current_child_ids - selected_child_ids
+        for child_id in to_remove:
+            self._assign_child(child_id, None) # Открепляем от группы
+
     def show_error(self, message: str):
         """Показать ошибку"""
         if self.page:
@@ -248,7 +311,118 @@ class GroupsView(ft.Container):
             self.page.snack_bar.open = True
             self.page.update()
     
+    def add_child_to_group(self, child):
+        """
+        Открыть диалог для назначения ребёнка в группу.
+        `child` может быть id (int/str) или словарь с ключом 'child_id'.
+        Этот метод вызывается из children_view.py
+        """
+        # Определяем id ребёнка
+        if isinstance(child, (int, str)):
+            child_id = int(child)
+        else:
+            child_id = int(child.get('child_id'))
+
+        # Собираем варианты групп
+        groups = self.db.get_all_groups()
+        options = [
+            ft.DropdownOption(key=str(g['group_id']), text=g['group_name'])
+            for g in groups
+        ]
+        # опция "Не назначен"
+        options.insert(0, ft.DropdownOption(key="0", text="Не назначен"))
+
+        # Предустановка значения (если уже выбрана группа в представлении)
+        initial_value = None
+        if self.selected_group:
+            initial_value = str(self.selected_group.get('group_id'))
+
+        group_dropdown = ft.Dropdown(
+            label="Выберите группу",
+            options=options,
+            value=initial_value or "0",
+            width=400
+        )
+
+        def on_assign(e):
+            try:
+                selected = group_dropdown.value
+                group_id = None if not selected or selected == "0" else int(selected)
+                self._assign_child(child_id, group_id)
+                dialog.open = False
+                self.page.update()
+            except Exception as ex:
+                self.show_error(f"Ошибка при назначении ребёнка: {str(ex)}")
+
+        def on_cancel(e):
+            dialog.open = False
+            self.page.update()
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Назначить ребёнка в группу"),
+            content=ft.Column([ft.Text(f"ID ребёнка: {child_id}"), group_dropdown], spacing=10),
+            actions=[
+                ft.TextButton("Отмена", on_click=on_cancel),
+                ft.ElevatedButton("Назначить", on_click=on_assign)
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            modal=True
+        )
+
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
+    def _assign_child(self, child_id: int, group_id: int | None):
+        """
+        Выполнить изменение группы для ребёнка в БД.
+        Пытаемся несколько возможных вызовов БД, чтобы быть совместимыми с разным API.
+        """
+        # Попытки разных имен методов (assign_child_to_group, update_child, update_child_group)
+        last_err = None
+        try:
+            # Предпочтительный метод
+            if hasattr(self.db, "assign_child_to_group"):
+                self.db.assign_child_to_group(child_id, group_id)
+                last_err = None
+            else:
+                raise AttributeError
+        except Exception as ex1:
+            last_err = ex1
+            try:
+                # Частый вариант: update_child(child_id, group_id=...)
+                if hasattr(self.db, "update_child"):
+                    # Некоторые реализации ожидают dict/kwargs
+                    try:
+                        self.db.update_child(child_id, group_id=group_id)
+                    except TypeError:
+                        # Попробуем словарь
+                        self.db.update_child(child_id, {"group_id": group_id})
+                    last_err = None
+                else:
+                    raise AttributeError
+            except Exception as ex2:
+                last_err = ex2
+                try:
+                    # Ещё вариант: update_child_group(child_id, group_id)
+                    if hasattr(self.db, "update_child_group"):
+                        self.db.update_child_group(child_id, group_id)
+                        last_err = None
+                    else:
+                        raise AttributeError
+                except Exception as ex3:
+                    last_err = ex3
+
+        if last_err:
+            raise last_err
+
+        # Обновляем данные в представлении
+        self.load_groups()
+        if self.on_refresh:
+            self.on_refresh()
+        if self.page:
+            self.page.update()
+
     def refresh(self):
         """Обновить данные"""
         self.load_groups()
-        self.load_stats()

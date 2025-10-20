@@ -104,7 +104,7 @@ class ChildrenView(ft.Container):
         # Таблица
         self.data_table = DataTable(
             columns=[
-                "ID", "Фамилия", "Имя", "Отчество", "Дата рождения", 
+                "№", "Фамилия", "Имя", "Отчество", "Дата рождения", 
                 "Возраст", "Пол", "Группа", "Дата зачисления"
             ],
             rows=[],
@@ -140,22 +140,26 @@ class ChildrenView(ft.Container):
             children = self.db.get_all_children()
         
         rows = []
-        for child in children:
+        for i, child in enumerate(children, 1):
             birth_date_obj = datetime.strptime(child['birth_date'], "%Y-%m-%d").date()
             today = date.today()
             age = today.year - birth_date_obj.year - ((today.month, today.day) < (birth_date_obj.month, birth_date_obj.day))
             
-            rows.append([
-                str(child['child_id']),
-                child['last_name'],
-                child['first_name'],
-                child['middle_name'] or '',
-                format_date(child['birth_date']),
-                str(age),
-                GENDERS.get(child['gender'], child['gender']),
-                child.get('group_name', 'Не назначена'),
-                format_date(child['enrollment_date'])
-            ])
+            # Формируем данные в новом формате: {"id": ..., "values": [...]}
+            rows.append({
+                "id": child['child_id'],
+                "values": [
+                    str(i), # Порядковый номер
+                    child['last_name'],
+                    child['first_name'],
+                    child['middle_name'] or '',
+                    format_date(child['birth_date']),
+                    str(age),
+                    GENDERS.get(child['gender'], child['gender']),
+                    child.get('group_name', 'Не назначена'),
+                    format_date(child['enrollment_date'])
+                ]
+            })
         
         self.data_table.set_rows(rows)
         if self.page:

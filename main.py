@@ -12,10 +12,20 @@ from settings.config import APP_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, DATABASE_NAM
 def main(page: ft.Page):
     """Главная функция приложения"""
     page.title = APP_TITLE
-    page.window_width = WINDOW_WIDTH
-    page.window_height = WINDOW_HEIGHT
+    page.window.width = WINDOW_WIDTH
+    page.window.height = WINDOW_HEIGHT
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
+
+    def toggle_theme(e):
+        page.theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
+        page.update()
+
+    theme_switch = ft.Switch(
+        label="Тема приложения",
+        value=page.theme_mode == ft.ThemeMode.DARK,
+        on_change=toggle_theme
+    )
     
     # Инициализация базы данных
     db = KindergartenDB(DATABASE_NAME)
@@ -42,7 +52,7 @@ def main(page: ft.Page):
         elif current_view[0] == teachers_view:
             teachers_view.load_teachers()
     
-    def switch_view(view):
+    def switch_view(view, e=None):
         """Переключить представление"""
         current_view[0] = view
         content_container.content = view
@@ -55,43 +65,57 @@ def main(page: ft.Page):
         elif view == teachers_view:
             teachers_view.load_teachers()
         
+        page.drawer.open = False
+        page.update()
+
+    def handle_dismissal(e):
+        print(f"Drawer dismissed!")
+
+    def handle_change(e):
+        print(f"Selected Index changed: {e.control.selected_index}")
+        # The actual view switching is handled by the ListTile's on_click,
+        # so we just need to close the drawer here.
+        page.drawer.open = False
         page.update()
     
-    # Боковое меню
-    rail = ft.NavigationRail(
-        selected_index=0,
-        label_type=ft.NavigationRailLabelType.ALL,
-        min_width=100,
-        min_extended_width=200,
-        destinations=[
-            ft.NavigationRailDestination(
-                icon=ft.Icons.CHILD_CARE_OUTLINED,
-                selected_icon=ft.Icons.CHILD_CARE,
-                label="Дети",
+    page.drawer = ft.NavigationDrawer(
+        on_dismiss=handle_dismissal,
+        on_change=handle_change,
+        controls=[
+            ft.Container(height=20),
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.CHILD_CARE_OUTLINED),
+                title=ft.Text("Дети"),
+                on_click=lambda e: switch_view(children_view, e)
             ),
-            ft.NavigationRailDestination(
-                icon=ft.Icons.GROUPS_OUTLINED,
-                selected_icon=ft.Icons.GROUPS,
-                label="Группы",
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.GROUPS_OUTLINED),
+                title=ft.Text("Группы"),
+                on_click=lambda e: switch_view(groups_view, e)
             ),
-            ft.NavigationRailDestination(
-                icon=ft.Icons.PERSON_OUTLINED,
-                selected_icon=ft.Icons.PERSON,
-                label="Воспитатели",
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.PERSON_OUTLINED),
+                title=ft.Text("Воспитатели"),
+                on_click=lambda e: switch_view(teachers_view, e)
             ),
-        ],
-        on_change=lambda e: switch_view(
-            children_view if e.control.selected_index == 0 
-            else groups_view if e.control.selected_index == 1
-            else teachers_view
-        ),
+            ft.Divider(),
+            ft.Container(
+                content=theme_switch,
+                padding=ft.padding.only(left=16)
+            )
+        ]
+    )
+
+    page.appbar = ft.AppBar(
+        leading=ft.IconButton(ft.Icons.MENU, on_click=lambda e: page.open(page.drawer)),
+        title=ft.Text(APP_TITLE),
+        center_title=True,
+        bgcolor=ft.Colors.ON_SURFACE_VARIANT,
     )
     
     # Основной layout
     page.add(
-        ft.Row([
-            rail,
-            ft.VerticalDivider(width=1),
+        ft.Column([
             content_container,
         ], expand=True)
     )

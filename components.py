@@ -80,20 +80,30 @@ class DataTable(ft.Container):
         )
         self.set_rows(rows) # Call set_rows to populate initial data
     
-    def set_rows(self, rows: list):
-        """Обновить строки таблицы"""
-        table_rows = []
-        for row_data in rows:
-            row_id = row_data[0] # Assume first element is ID
+    def set_rows(self, rows_data: list):
+        """
+        Устанавливает строки таблицы.
+        Принимает данные в формате: [{"id": 1, "values": ["a", "b"]}, ...]
+        """
+        self.table.rows.clear()
+        for row_item in rows_data:
+            # Убедимся, что элемент - это словарь
+            if not isinstance(row_item, dict):
+                continue
+
+            row_id = row_item.get('id')
+            row_values = row_item.get('values', [])
+
+            if row_id is None:
+                continue
+
+            cells = [ft.DataCell(ft.Text(str(value))) for value in row_values]
             
-            cells = [ft.DataCell(ft.Text(str(cell))) for cell in row_data] # All data in row_data are cells
-            
-            # Добавляем кнопки действий
+            # Добавляем кнопки управления, если есть обработчики
             if self.on_edit or self.on_delete:
-                actions = ft.Row([], spacing=5)
-                
+                action_buttons = []
                 if self.on_edit:
-                    actions.controls.append(
+                    action_buttons.append(
                         ft.IconButton(
                             icon=ft.Icons.EDIT,
                             icon_color=ft.Colors.BLUE,
@@ -101,25 +111,19 @@ class DataTable(ft.Container):
                             on_click=lambda e, rid=row_id: self.on_edit(rid)
                         )
                     )
-                
                 if self.on_delete:
-                    def delete_handler(_e, rid=row_id):
-                        print(f"Удаление: {rid}")
-                        self.on_delete(rid)
-                    actions.controls.append(
+                    action_buttons.append(
                         ft.IconButton(
                             icon=ft.Icons.DELETE,
                             icon_color=ft.Colors.RED,
                             tooltip="Удалить",
-                            on_click=delete_handler
+                            on_click=lambda e, rid=row_id: self.on_delete(rid)
                         )
                     )
-                
-                cells.append(ft.DataCell(actions))
+                cells.append(ft.DataCell(ft.Row(action_buttons)))
             
-            table_rows.append(ft.DataRow(cells=cells))
+            self.table.rows.append(ft.DataRow(cells=cells))
         
-        self.table.rows = table_rows
         if self.page:
             self.update()
 

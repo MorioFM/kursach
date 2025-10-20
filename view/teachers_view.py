@@ -80,7 +80,7 @@ class TeachersView(ft.Container):
         
         # Таблица
         self.data_table = DataTable(
-            columns=["ID", "ФИО", "Телефон", "Email"],
+            columns=["№", "ФИО", "Телефон", "Email"],
             rows=[],
             on_edit=self.edit_teacher,
             on_delete=self.delete_teacher
@@ -106,21 +106,27 @@ class TeachersView(ft.Container):
             self.form_container,
             ft.Divider(),
             self.data_table
-        ], spacing=20, expand=True, scroll=ft.ScrollMode.AUTO)
+        ], spacing=20, expand=True)
     
-    def load_teachers(self):
+    def load_teachers(self, search_query: str = ""):
         """Загрузка списка воспитателей"""
-        teachers = self.db.get_all_teachers()
+        if search_query:
+            teachers = self.db.search_teachers(search_query)
+        else:
+            teachers = self.db.get_all_teachers()
         
         rows = []
-        for teacher in teachers:
-            full_name = teacher['full_name']
-            rows.append([
-                str(teacher['teacher_id']),
-                full_name,
-                teacher['phone'] or '-',
-                teacher['email'] or '-'
-            ])
+        for i, teacher in enumerate(teachers, 1):
+            # Формируем данные в новом формате: {"id": ..., "values": [...]}
+            rows.append({
+                "id": teacher['teacher_id'],
+                "values": [
+                    str(i), # Порядковый номер
+                    teacher.get('full_name', ''),
+                    teacher.get('phone', ''),
+                    teacher.get('email', '')
+                ]
+            })
         
         self.data_table.set_rows(rows)
         if self.page:
