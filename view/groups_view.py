@@ -183,12 +183,13 @@ class GroupsView(ft.Container):
     
     def save_group(self, e):
         """Сохранить группу"""
-        # Валидация
-        if not all([
-            self.group_name_field.value,
-            self.age_category_dropdown.value
-        ]):
-            self.show_error("Пожалуйста, заполните все обязательные поля")
+        # Проверка обязательных полей
+        if not self.group_name_field.value or not self.group_name_field.value.strip():
+            self.show_error("Поле 'Название группы' обязательно для заполнения")
+            return
+        
+        if not self.age_category_dropdown.value:
+            self.show_error("Поле 'Возрастная категория' обязательно для заполнения")
             return
         
         try:

@@ -199,12 +199,13 @@ class TeachersView(ft.Container):
     
     def save_teacher(self, e):
         """Сохранить воспитателя"""
-        # Валидация
-        if not all([
-            self.last_name_field.value,
-            self.first_name_field.value
-        ]):
-            self.show_error("Пожалуйста, заполните обязательные поля (Фамилия и Имя)")
+        # Проверка обязательных полей
+        if not self.last_name_field.value or not self.last_name_field.value.strip():
+            self.show_error("Поле 'Фамилия' обязательно для заполнения")
+            return
+        
+        if not self.first_name_field.value or not self.first_name_field.value.strip():
+            self.show_error("Поле 'Имя' обязательно для заполнения")
             return
         
         try:

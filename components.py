@@ -67,23 +67,23 @@ class DataTable(ft.Container):
         
         self.table = ft.DataTable(
             columns=table_columns,
-            rows=[], # Initialize with empty rows, will be set by set_rows
-            border=ft.border.all(1, ft.Colors.GREY_300),
+            rows=[],
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=10,
-            vertical_lines=ft.border.BorderSide(1, ft.Colors.GREY_300),
-            horizontal_lines=ft.border.BorderSide(1, ft.Colors.GREY_300),
+            vertical_lines=ft.border.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+            horizontal_lines=ft.border.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+            heading_row_color=ft.Colors.OUTLINE_VARIANT,
+            data_row_color={ft.ControlState.HOVERED: ft.Colors.ON_SURFACE_VARIANT},
+            expand=True,
+            width=4000,
+            height=4000
         )
         
         super().__init__(
-            content=ft.Row([
-                ft.Container(
-                    content=self.table,
-                    expand=True
-                )
-            ], expand=True, scroll=ft.ScrollMode.AUTO),
+            content=self.table,
             expand=True
         )
-        self.set_rows(rows) # Call set_rows to populate initial data
+        self.set_rows(rows)
     
     def set_rows(self, rows_data: list):
         """
@@ -92,7 +92,6 @@ class DataTable(ft.Container):
         """
         self.table.rows.clear()
         for row_item in rows_data:
-            # Убедимся, что элемент - это словарь
             if not isinstance(row_item, dict):
                 continue
 

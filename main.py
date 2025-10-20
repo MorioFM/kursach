@@ -86,18 +86,13 @@ def main(page: ft.Page):
         page.drawer.open = False
         page.update()
 
-    def handle_dismissal(e):
-        print(f"Drawer dismissed!")
+
 
     def handle_change(e):
-        print(f"Selected Index changed: {e.control.selected_index}")
-        # The actual view switching is handled by the ListTile's on_click,
-        # so we just need to close the drawer here.
         page.drawer.open = False
         page.update()
     
     page.drawer = ft.NavigationDrawer(
-        on_dismiss=handle_dismissal,
         on_change=handle_change,
         controls=[
             ft.Container(height=20),

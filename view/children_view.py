@@ -211,15 +211,25 @@ class ChildrenView(ft.Container):
     
     def save_child(self, e):
         """Сохранить ребенка"""
-        # Валидация
-        if not all([
-            self.last_name_field.value,
-            self.first_name_field.value,
-            self.birth_date_field.value,
-            self.gender_dropdown.value,
-            self.enrollment_date_field.value
-        ]):
-            self.show_error("Пожалуйста, заполните все обязательные поля")
+        # Проверка обязательных полей
+        if not self.last_name_field.value or not self.last_name_field.value.strip():
+            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Фамилия'")
+            return
+        
+        if not self.first_name_field.value or not self.first_name_field.value.strip():
+            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Имя'")
+            return
+        
+        if not self.birth_date_field.value or not self.birth_date_field.value.strip():
+            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Дата рождения'")
+            return
+        
+        if not self.gender_dropdown.value:
+            self.show_modal_error("Ошибка валидации", "Вы забыли выбрать поле 'Пол'")
+            return
+        
+        if not self.enrollment_date_field.value or not self.enrollment_date_field.value.strip():
+            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Дата зачисления'")
             return
         
         try:
