@@ -3,7 +3,7 @@
 """
 import flet as ft
 from typing import Callable
-from components import DataTable
+from components import DataTable, SearchBar
 from dialogs import show_confirm_dialog
 from settings.config import PRIMARY_COLOR
 
@@ -17,6 +17,7 @@ class TeachersView(ft.Container):
         self.on_refresh = on_refresh
         self.selected_teacher = None
         self.page = page
+        self.search_query = ""
         
         # Поля формы
         self.last_name_field = ft.TextField(
@@ -78,6 +79,9 @@ class TeachersView(ft.Container):
             visible=False
         )
         
+        # Поиск
+        self.search_bar = SearchBar(on_search=self.on_search, placeholder="Поиск воспитателей...")
+        
         # Таблица
         self.data_table = DataTable(
             columns=["№", "ФИО", "Телефон", "Email"],
@@ -104,9 +108,14 @@ class TeachersView(ft.Container):
                 add_button
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             self.form_container,
-            ft.Divider(),
+            self.search_bar,
             self.data_table
         ], spacing=20, expand=True)
+    
+    def on_search(self, query: str):
+        """Обработчик поиска"""
+        self.search_query = query
+        self.load_teachers(query)
     
     def load_teachers(self, search_query: str = ""):
         """Загрузка списка воспитателей"""
@@ -173,7 +182,7 @@ class TeachersView(ft.Container):
                     )
                     return
                 self.db.delete_teacher(int(teacher_id))
-                self.load_teachers()
+                self.load_teachers(self.search_query)
                 if self.on_refresh:
                     self.on_refresh()
                 self.show_success(f"Воспитатель {teacher['full_name']} успешно удален")
@@ -222,7 +231,7 @@ class TeachersView(ft.Container):
                 self.show_success("Воспитатель успешно добавлен")
             
             self.form_container.visible = False
-            self.load_teachers()
+            self.load_teachers(self.search_query)
             if self.on_refresh:
                 self.on_refresh()
             self.update()

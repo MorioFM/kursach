@@ -75,8 +75,13 @@ class DataTable(ft.Container):
         )
         
         super().__init__(
-            content=self.table,
-            padding=10,
+            content=ft.Row([
+                ft.Container(
+                    content=self.table,
+                    expand=True
+                )
+            ], expand=True, scroll=ft.ScrollMode.AUTO),
+            expand=True
         )
         self.set_rows(rows) # Call set_rows to populate initial data
     

@@ -17,8 +17,26 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
 
+    # Создаем контейнер для заголовка с динамическим цветом
+    header_container = ft.Container(
+        content=ft.Row(
+            [
+                ft.IconButton(
+                    icon=ft.Icons.MENU,
+                    on_click=lambda e: page.open(page.drawer),
+                ),
+                ft.Text(APP_TITLE, size=20, weight="bold"),
+            ],
+            alignment=ft.MainAxisAlignment.START,
+        ),
+        bgcolor=ft.Colors.ON_SURFACE_VARIANT,
+        padding=10
+    )
+
     def toggle_theme(e):
         page.theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
+        # Обновляем цвет заголовка в зависимости от темы
+        header_container.bgcolor = ft.Colors.ON_SURFACE_VARIANT if page.theme_mode == ft.ThemeMode.DARK else ft.Colors.ON_SURFACE_VARIANT
         page.update()
 
     theme_switch = ft.Switch(
@@ -106,19 +124,20 @@ def main(page: ft.Page):
         ]
     )
 
-    page.appbar = ft.AppBar(
-        leading=ft.IconButton(ft.Icons.MENU, on_click=lambda e: page.open(page.drawer)),
-        title=ft.Text(APP_TITLE),
-        center_title=True,
-        bgcolor=ft.Colors.ON_SURFACE_VARIANT,
-    )
     
-    # Основной layout
+    
     page.add(
-        ft.Column([
-            content_container,
-        ], expand=True)
+        header_container,
+        ft.Divider(),
+        content_container,
     )
+
+    # # Основной layout
+    # page.add(
+    #     ft.Column([
+    #         content_container,
+    #     ], expand=True)
+    # )
     
     # Загружаем начальное представление
     switch_view(children_view)

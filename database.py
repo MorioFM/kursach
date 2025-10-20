@@ -148,6 +148,28 @@ class KindergartenDB:
         """Удалить воспитателя"""
         Teacher.delete().where(Teacher.teacher_id == teacher_id).execute()
     
+    def search_teachers(self, search_term: str) -> List[dict]:
+        """
+        Поиск воспитателей по ФИО, телефону или email
+        
+        Args:
+            search_term: строка для поиска
+        
+        Returns:
+            список найденных воспитателей
+        """
+        teachers = (Teacher
+                   .select()
+                   .where(
+                       (Teacher.last_name.contains(search_term)) |
+                       (Teacher.first_name.contains(search_term)) |
+                       (Teacher.middle_name.contains(search_term)) |
+                       (Teacher.phone.contains(search_term)) |
+                       (Teacher.email.contains(search_term))
+                   )
+                   .order_by(Teacher.last_name, Teacher.first_name))
+        return [self._teacher_to_dict(teacher) for teacher in teachers]
+    
     # === РАБОТА С ГРУППАМИ ===
     
     def add_group(self, group_name: str, age_category: str, teacher_id: Optional[int] = None) -> int:

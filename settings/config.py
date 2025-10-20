@@ -7,7 +7,7 @@ DATABASE_NAME = "kindergarten.db"
 
 # Настройки интерфейса
 APP_TITLE = "Учет детей в детском саду"
-WINDOW_WIDTH = 1200
+WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 800
 
 # Цвета

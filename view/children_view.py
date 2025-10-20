@@ -95,7 +95,7 @@ class ChildrenView(ft.Container):
             padding=20,
             border=ft.border.all(1, ft.Colors.OUTLINE),
             border_radius=10,
-            visible=False
+            visible=False,
         )
         
         # Поиск
@@ -129,7 +129,7 @@ class ChildrenView(ft.Container):
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             self.form_container,
             self.search_bar,
-            self.data_table
+            ft.Container(content=self.data_table, expand=True)
         ], spacing=20, expand=True)
     
     def load_children(self, search_query: str = ""):

@@ -86,7 +86,7 @@ class GroupsView(ft.Container):
             # Убираем неработающий аргумент hide_columns
             rows=[],
             on_edit=self.edit_group,
-            on_delete=self.delete_group
+            on_delete=self.delete_group,
         )
         
         # Кнопка добавления
