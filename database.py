@@ -322,7 +322,7 @@ class KindergartenDB:
         for field, value in kwargs.items():
             if field in allowed_fields and value is not None:
                 updates[field] = value
-            elif field == 'group_id' and value is not None:
+            elif field == 'group_id':  # Убрал проверку value is not None
                 updates['group'] = value
         
         if updates:

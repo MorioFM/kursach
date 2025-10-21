@@ -25,18 +25,39 @@ class TeachersView(ft.Container):
             width=300,
             autofocus=True
         )
+        self.last_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        
         self.first_name_field = ft.TextField(
             label="Имя *",
             width=300
         )
+        self.first_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
         self.middle_name_field = ft.TextField(
             label="Отчество",
             width=300
         )
+        # Код страны
+        self.country_code_dropdown = ft.Dropdown(
+            label="Код страны",
+            width=150,
+            value="+7",
+            options=[
+                ft.DropdownOption("+7", "+7 (Россия)"),
+                ft.DropdownOption("+375", "+375 (Беларусь)"),
+                ft.DropdownOption("+1", "+1 (США)"),
+                ft.DropdownOption("+380", "+380 (Украина)"),
+                ft.DropdownOption("+49", "+49 (Германия)")
+            ],
+            on_change=self.update_phone_hint
+        )
+        
         self.phone_field = ft.TextField(
-            label="Телефон",
-            width=300,
-            keyboard_type=ft.KeyboardType.PHONE
+            label="Номер телефона",
+            width=140,
+            keyboard_type=ft.KeyboardType.PHONE,
+            hint_text="000-000-00-00",
+            max_length=15,
+            on_change=self.format_phone
         )
         self.email_field = ft.TextField(
             label="Email",
@@ -64,15 +85,20 @@ class TeachersView(ft.Container):
             content=ft.Column([
                 self.form_title,
                 self.last_name_field,
+                self.last_name_error,
                 self.first_name_field,
+                self.first_name_error,
                 self.middle_name_field,
-                self.phone_field,
+                ft.Row([
+                    self.country_code_dropdown,
+                    self.phone_field
+                ], spacing=10),
                 self.email_field,
                 ft.Row([
                     self.save_button,
                     self.cancel_button
                 ], spacing=10)
-            ], spacing=15),
+            ], spacing=5),
             padding=20,
             border=ft.border.all(1, ft.Colors.OUTLINE),
             border_radius=10,
@@ -157,7 +183,22 @@ class TeachersView(ft.Container):
             self.last_name_field.value = teacher['last_name']
             self.first_name_field.value = teacher['first_name']
             self.middle_name_field.value = teacher['middle_name'] or ''
-            self.phone_field.value = teacher['phone'] or ''
+            
+            # Разбираем телефон на код страны и номер
+            phone = teacher['phone'] or ''
+            if phone.startswith('+375'):
+                self.country_code_dropdown.value = '+375'
+                self.phone_field.value = phone[4:]
+            elif phone.startswith('+1'):
+                self.country_code_dropdown.value = '+1'
+                self.phone_field.value = phone[2:]
+            elif phone.startswith('+7'):
+                self.country_code_dropdown.value = '+7'
+                self.phone_field.value = phone[2:]
+            else:
+                self.country_code_dropdown.value = '+7'
+                self.phone_field.value = phone
+            
             self.email_field.value = teacher['email'] or ''
             
             self.form_title.value = "Редактировать воспитателя"
@@ -197,36 +238,120 @@ class TeachersView(ft.Container):
             adaptive=True
         )
     
+    def update_phone_hint(self, e):
+        """Обновить подсказку для телефона в зависимости от кода страны"""
+        code = e.control.value
+        if code == "+7":
+            self.phone_field.hint_text = "000-000-00-00"
+        elif code == "+375":
+            self.phone_field.hint_text = "00-000-00-00"
+        elif code == "+1":
+            self.phone_field.hint_text = "000-000-0000"
+        else:
+            self.phone_field.hint_text = "000-000-00-00"
+        self.phone_field.update()
+    
+    def format_phone(self, e):
+        """Форматирование номера телефона"""
+        value = e.control.value
+        digits = ''.join(filter(str.isdigit, value))
+        
+        # Ограничиваем до 10 цифр (без кода страны)
+        if len(digits) > 10:
+            digits = digits[:10]
+        
+        # Применяем маску в зависимости от кода страны
+        code = self.country_code_dropdown.value
+        
+        if code == "+1":  # США
+            if len(digits) <= 3:
+                formatted = digits
+            elif len(digits) <= 6:
+                formatted = f"{digits[:3]}-{digits[3:]}"
+            else:
+                formatted = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+        elif code == "+375":  # Беларусь
+            if len(digits) <= 2:
+                formatted = digits
+            elif len(digits) <= 5:
+                formatted = f"{digits[:2]}-{digits[2:]}"
+            elif len(digits) <= 7:
+                formatted = f"{digits[:2]}-{digits[2:5]}-{digits[5:]}"
+            else:
+                formatted = f"{digits[:2]}-{digits[2:5]}-{digits[5:7]}-{digits[7:]}"
+        else:  # Россия и другие
+            if len(digits) <= 3:
+                formatted = digits
+            elif len(digits) <= 6:
+                formatted = f"{digits[:3]}-{digits[3:]}"
+            elif len(digits) <= 8:
+                formatted = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+            else:
+                formatted = f"{digits[:3]}-{digits[3:6]}-{digits[6:8]}-{digits[8:]}"
+        
+        e.control.value = formatted
+        e.control.update()
+    
+    def clear_field_errors(self):
+        """Очистить все сообщения об ошибках"""
+        self.last_name_error.visible = False
+        self.first_name_error.visible = False
+    
+    def validate_fields(self):
+        """Проверить обязательные поля и показать ошибки"""
+        self.clear_field_errors()
+        is_valid = True
+        
+        if not self.last_name_field.value or not self.last_name_field.value.strip():
+            self.last_name_error.value = "Заполните поле"
+            self.last_name_error.visible = True
+            is_valid = False
+        
+        if not self.first_name_field.value or not self.first_name_field.value.strip():
+            self.first_name_error.value = "Заполните поле"
+            self.first_name_error.visible = True
+            is_valid = False
+        
+        if not is_valid:
+            self.update()
+        
+        return is_valid
+    
     def save_teacher(self, e):
         """Сохранить воспитателя"""
         # Проверка обязательных полей
-        if not self.last_name_field.value or not self.last_name_field.value.strip():
-            self.show_error("Поле 'Фамилия' обязательно для заполнения")
-            return
-        
-        if not self.first_name_field.value or not self.first_name_field.value.strip():
-            self.show_error("Поле 'Имя' обязательно для заполнения")
+        if not self.validate_fields():
             return
         
         try:
             if self.selected_teacher:
                 # Обновление
+                # Собираем полный номер телефона
+                full_phone = None
+                if self.phone_field.value and self.phone_field.value.strip():
+                    full_phone = self.country_code_dropdown.value + self.phone_field.value.replace('-', '')
+                
                 self.db.update_teacher(
                     self.selected_teacher['teacher_id'],
                     last_name=self.last_name_field.value,
                     first_name=self.first_name_field.value,
                     middle_name=self.middle_name_field.value or None,
-                    phone=self.phone_field.value or None,
+                    phone=full_phone,
                     email=self.email_field.value or None
                 )
                 self.show_success("Воспитатель успешно обновлен")
             else:
                 # Добавление
+                # Собираем полный номер телефона
+                full_phone = None
+                if self.phone_field.value and self.phone_field.value.strip():
+                    full_phone = self.country_code_dropdown.value + self.phone_field.value.replace('-', '')
+                
                 self.db.add_teacher(
                     last_name=self.last_name_field.value,
                     first_name=self.first_name_field.value,
                     middle_name=self.middle_name_field.value or None,
-                    phone=self.phone_field.value or None,
+                    phone=full_phone,
                     email=self.email_field.value or None
                 )
                 self.show_success("Воспитатель успешно добавлен")
@@ -251,8 +376,10 @@ class TeachersView(ft.Container):
         self.last_name_field.value = ""
         self.first_name_field.value = ""
         self.middle_name_field.value = ""
+        self.country_code_dropdown.value = "+7"
         self.phone_field.value = ""
         self.email_field.value = ""
+        self.clear_field_errors()
     
     def show_error(self, message: str):
         """Показать ошибку"""

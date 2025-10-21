@@ -27,24 +27,32 @@ class ChildrenView(ft.Container):
             width=300,
             autofocus=True
         )
+        self.last_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        
         self.first_name_field = ft.TextField(
             label="Имя",
             width=300
         )
+        self.first_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        
         self.middle_name_field = ft.TextField(
             label="Отчество",
             width=300
         )
+        
         self.birth_date_field = ft.TextField(
             label="Дата рождения (ГГГГ-ММ-ДД)",
             width=300,
             hint_text="2020-01-15"
         )
+        self.birth_date_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        
         self.gender_dropdown = ft.Dropdown(
             label="Пол",
             width=300,
             options=[ft.DropdownOption(k, v) for k, v in GENDERS.items()]
         )
+        self.gender_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
         
         # Получаем список групп для dropdown
         groups = self.db.get_all_groups()
@@ -52,6 +60,8 @@ class ChildrenView(ft.Container):
             label="Группа",
             width=300,
             options=[
+                ft.DropdownOption("0", "Без группы")
+            ] + [
                 ft.DropdownOption(str(g['group_id']), g['group_name']) 
                 for g in groups
             ]
@@ -63,6 +73,7 @@ class ChildrenView(ft.Container):
             hint_text="2024-09-01",
             value=datetime.now().strftime("%Y-%m-%d")
         )
+        self.enrollment_date_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
         
         # Кнопки формы
         self.save_button = ft.ElevatedButton(
@@ -81,17 +92,22 @@ class ChildrenView(ft.Container):
             content=ft.Column([
                 ft.Text("Добавить ребенка", size=20, weight=ft.FontWeight.BOLD),
                 self.last_name_field,
+                self.last_name_error,
                 self.first_name_field,
+                self.first_name_error,
                 self.middle_name_field,
                 self.birth_date_field,
+                self.birth_date_error,
                 self.gender_dropdown,
+                self.gender_error,
                 self.group_dropdown,
                 self.enrollment_date_field,
+                self.enrollment_date_error,
                 ft.Row([
                     self.save_button,
                     self.cancel_button
                 ], spacing=10)
-            ], spacing=15),
+            ], spacing=5),
             padding=20,
             border=ft.border.all(1, ft.Colors.OUTLINE),
             border_radius=10,
@@ -156,7 +172,7 @@ class ChildrenView(ft.Container):
                     format_date(child['birth_date']),
                     str(age),
                     GENDERS.get(child['gender'], child['gender']),
-                    child.get('group_name', 'Не назначена'),
+                    child.get('group_name') if child.get('group_id') else 'Без группы',
                     format_date(child['enrollment_date'])
                 ]
             })
@@ -183,7 +199,7 @@ class ChildrenView(ft.Container):
             self.middle_name_field.value = child['middle_name'] or ''
             self.birth_date_field.value = child['birth_date']
             self.gender_dropdown.value = child['gender']
-            self.group_dropdown.value = str(child['group_id']) if child['group_id'] else None
+            self.group_dropdown.value = str(child['group_id']) if child['group_id'] else "0"
             self.enrollment_date_field.value = child['enrollment_date']
             
             self.form_container.content.controls[0].value = "Редактировать ребенка"
@@ -209,27 +225,53 @@ class ChildrenView(ft.Container):
             adaptive=True,
         )
     
+    def clear_field_errors(self):
+        """Очистить все сообщения об ошибках"""
+        self.last_name_error.visible = False
+        self.first_name_error.visible = False
+        self.birth_date_error.visible = False
+        self.gender_error.visible = False
+        self.enrollment_date_error.visible = False
+    
+    def validate_fields(self):
+        """Проверить обязательные поля и показать ошибки"""
+        self.clear_field_errors()
+        is_valid = True
+        
+        if not self.last_name_field.value or not self.last_name_field.value.strip():
+            self.last_name_error.value = "Заполните поле"
+            self.last_name_error.visible = True
+            is_valid = False
+        
+        if not self.first_name_field.value or not self.first_name_field.value.strip():
+            self.first_name_error.value = "Заполните поле"
+            self.first_name_error.visible = True
+            is_valid = False
+        
+        if not self.birth_date_field.value or not self.birth_date_field.value.strip():
+            self.birth_date_error.value = "Заполните поле"
+            self.birth_date_error.visible = True
+            is_valid = False
+        
+        if not self.gender_dropdown.value:
+            self.gender_error.value = "Заполните поле"
+            self.gender_error.visible = True
+            is_valid = False
+        
+        if not self.enrollment_date_field.value or not self.enrollment_date_field.value.strip():
+            self.enrollment_date_error.value = "Заполните поле"
+            self.enrollment_date_error.visible = True
+            is_valid = False
+        
+        if not is_valid:
+            self.update()
+        
+        return is_valid
+    
     def save_child(self, e):
         """Сохранить ребенка"""
         # Проверка обязательных полей
-        if not self.last_name_field.value or not self.last_name_field.value.strip():
-            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Фамилия'")
-            return
-        
-        if not self.first_name_field.value or not self.first_name_field.value.strip():
-            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Имя'")
-            return
-        
-        if not self.birth_date_field.value or not self.birth_date_field.value.strip():
-            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Дата рождения'")
-            return
-        
-        if not self.gender_dropdown.value:
-            self.show_modal_error("Ошибка валидации", "Вы забыли выбрать поле 'Пол'")
-            return
-        
-        if not self.enrollment_date_field.value or not self.enrollment_date_field.value.strip():
-            self.show_modal_error("Ошибка валидации", "Вы забыли заполнить поле 'Дата зачисления'")
+        if not self.validate_fields():
             return
         
         try:
@@ -239,7 +281,7 @@ class ChildrenView(ft.Container):
                 'middle_name': self.middle_name_field.value or None,
                 'birth_date': self.birth_date_field.value,
                 'gender': self.gender_dropdown.value,
-                'group_id': int(self.group_dropdown.value) if self.group_dropdown.value else None,
+                'group_id': int(self.group_dropdown.value) if self.group_dropdown.value and self.group_dropdown.value != "0" else None,
                 'enrollment_date': self.enrollment_date_field.value
             }
             
@@ -280,8 +322,9 @@ class ChildrenView(ft.Container):
         self.middle_name_field.value = ""
         self.birth_date_field.value = ""
         self.gender_dropdown.value = None
-        self.group_dropdown.value = None
+        self.group_dropdown.value = "0"
         self.enrollment_date_field.value = datetime.now().strftime("%Y-%m-%d")
+        self.clear_field_errors()
     
     def on_search(self, query: str):
         """Обработка поиска"""
@@ -298,11 +341,14 @@ class ChildrenView(ft.Container):
             self.page.snack_bar.open = True
             self.page.update()
     
+
     def refresh(self):
         """Обновить данные"""
         # Обновляем список групп в dropdown
         groups = self.db.get_all_groups()
         self.group_dropdown.options = [
+            ft.DropdownOption("0", "Без группы")
+        ] + [
             ft.DropdownOption(str(g['group_id']), g['group_name']) 
             for g in groups
         ]

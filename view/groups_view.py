@@ -23,11 +23,14 @@ class GroupsView(ft.Container):
             width=300,
             autofocus=True
         )
+        self.group_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        
         self.age_category_dropdown = ft.Dropdown(
             label="Возрастная категория",
             width=300,
             options=[ft.DropdownOption(k, v) for k, v in AGE_CATEGORIES.items()]
         )
+        self.age_category_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
         self.teacher_dropdown = ft.Dropdown(
             label="Воспитатель",
             width=300,
@@ -65,14 +68,16 @@ class GroupsView(ft.Container):
             content=ft.Column([
                 ft.Text("Добавить группу", size=20, weight=ft.FontWeight.BOLD),
                 self.group_name_field,
+                self.group_name_error,
                 self.age_category_dropdown,
+                self.age_category_error,
                 self.teacher_dropdown,
                 self.children_container,
                 ft.Row([
                     self.save_button,
                     self.cancel_button
                 ], spacing=10)
-            ], spacing=15),
+            ], spacing=5),
             padding=20,
             border=ft.border.all(1, ft.Colors.OUTLINE),
             border_radius=10,
@@ -181,15 +186,35 @@ class GroupsView(ft.Container):
             adaptive=True,
         )
     
+    def clear_field_errors(self):
+        """Очистить все сообщения об ошибках"""
+        self.group_name_error.visible = False
+        self.age_category_error.visible = False
+    
+    def validate_fields(self):
+        """Проверить обязательные поля и показать ошибки"""
+        self.clear_field_errors()
+        is_valid = True
+        
+        if not self.group_name_field.value or not self.group_name_field.value.strip():
+            self.group_name_error.value = "Заполните поле"
+            self.group_name_error.visible = True
+            is_valid = False
+        
+        if not self.age_category_dropdown.value:
+            self.age_category_error.value = "Заполните поле"
+            self.age_category_error.visible = True
+            is_valid = False
+        
+        if not is_valid:
+            self.update()
+        
+        return is_valid
+    
     def save_group(self, e):
         """Сохранить группу"""
         # Проверка обязательных полей
-        if not self.group_name_field.value or not self.group_name_field.value.strip():
-            self.show_error("Поле 'Название группы' обязательно для заполнения")
-            return
-        
-        if not self.age_category_dropdown.value:
-            self.show_error("Поле 'Возрастная категория' обязательно для заполнения")
+        if not self.validate_fields():
             return
         
         try:
@@ -241,6 +266,7 @@ class GroupsView(ft.Container):
         self.age_category_dropdown.value = None
         self.teacher_dropdown.value = "0"
         self.children_list_view.controls.clear()
+        self.clear_field_errors()
 
     def load_teachers(self):
         """Загрузка списка воспитателей для выпадающего списка"""
@@ -262,25 +288,33 @@ class GroupsView(ft.Container):
         
         children_in_group_ids = []
         if group_id:
-            # Предполагаем, что есть метод для получения детей по группе
             children_in_group = self.db.get_children_by_group(group_id)
             children_in_group_ids = [c['child_id'] for c in children_in_group]
 
         for child in all_children:
-            # Показываем только детей без группы или детей из текущей редактируемой группы
-            if child.get('group_id') is None or child.get('child_id') in children_in_group_ids:
-                # Формируем полное имя из частей, чтобы избежать ошибки
-                last_name = child.get('last_name', '')
-                first_name = child.get('first_name', '')
-                middle_name = child.get('middle_name', '')
-                full_name = f"{last_name} {first_name} {middle_name}".strip()
-                
-                checkbox = ft.Checkbox(
-                    label=full_name,
-                    value=(child['child_id'] in children_in_group_ids),
-                    data=child['child_id']
-                )
-                self.children_list_view.controls.append(checkbox)
+            # Показываем всех детей, но делаем недоступными тех, кто уже в других группах
+            child_group_id = child.get('group_id')
+            is_in_current_group = child['child_id'] in children_in_group_ids
+            is_in_other_group = child_group_id is not None and child_group_id != group_id
+            
+            # Формируем полное имя
+            last_name = child.get('last_name', '')
+            first_name = child.get('first_name', '')
+            middle_name = child.get('middle_name', '')
+            full_name = f"{last_name} {first_name} {middle_name}".strip()
+            
+            # Добавляем информацию о группе, если ребенок в другой группе
+            if is_in_other_group:
+                group_name = child.get('group_name', 'Неизвестная группа')
+                full_name += f" (в группе: {group_name})"
+            
+            checkbox = ft.Checkbox(
+                label=full_name,
+                value=is_in_current_group,
+                data=child['child_id'],
+                disabled=is_in_other_group  # Отключаем детей из других групп
+            )
+            self.children_list_view.controls.append(checkbox)
 
     def _update_group_children(self, group_id: int):
         """Обновляет состав детей в группе на основе выбора в форме."""
