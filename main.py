@@ -6,6 +6,7 @@ from database import KindergartenDB
 from view.children_view import ChildrenView
 from view.groups_view import GroupsView
 from view.teachers_view import TeachersView
+from view.parents_view import ParentsView
 from settings.config import APP_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, DATABASE_NAME
 
 
@@ -54,9 +55,10 @@ def main(page: ft.Page):
     content_container = ft.Container(expand=True)
     
     # Создаем представления
-    children_view = ChildrenView(db, lambda: refresh_current_view())
+    children_view = ChildrenView(db, lambda: refresh_current_view(), page)
     groups_view = GroupsView(db, lambda: refresh_current_view())
     teachers_view = TeachersView(db, lambda: refresh_current_view())
+    parents_view = ParentsView(db, lambda: refresh_current_view(), page)
     
     # Текущее представление
     current_view = [children_view]
@@ -69,6 +71,8 @@ def main(page: ft.Page):
             groups_view.load_groups()
         elif current_view[0] == teachers_view:
             teachers_view.load_teachers()
+        elif current_view[0] == parents_view:
+            parents_view.load_parents()
     
     def switch_view(view, e=None):
         """Переключить представление"""
@@ -82,6 +86,8 @@ def main(page: ft.Page):
             groups_view.load_groups()
         elif view == teachers_view:
             teachers_view.load_teachers()
+        elif view == parents_view:
+            parents_view.load_parents()
         
         page.drawer.open = False
         page.update()
@@ -110,6 +116,11 @@ def main(page: ft.Page):
                 leading=ft.Icon(ft.Icons.PERSON_OUTLINED),
                 title=ft.Text("Воспитатели"),
                 on_click=lambda e: switch_view(teachers_view, e)
+            ),
+            ft.ListTile(
+                leading=ft.Icon(ft.Icons.FAMILY_RESTROOM_OUTLINED),
+                title=ft.Text("Родители"),
+                on_click=lambda e: switch_view(parents_view, e)
             ),
             ft.Divider(),
             ft.Container(

@@ -54,15 +54,16 @@ class InfoCard(ft.Container):
 class DataTable(ft.Container):
     """Таблица данных с возможностью редактирования и удаления"""
     def __init__(self, columns: list, rows: list, on_edit: Optional[Callable] = None,
-                 on_delete: Optional[Callable] = None):
+                 on_delete: Optional[Callable] = None, custom_actions: list = None):
         self.on_edit = on_edit
         self.on_delete = on_delete
+        self.custom_actions = custom_actions or []
         
         # Создаем колонки таблицы
         table_columns = [ft.DataColumn(ft.Text(col)) for col in columns]
         
         # Добавляем колонку действий если есть обработчики
-        if on_edit or on_delete:
+        if on_edit or on_delete or self.custom_actions:
             table_columns.append(ft.DataColumn(ft.Text("Действия")))
         
         self.table = ft.DataTable(
@@ -104,8 +105,20 @@ class DataTable(ft.Container):
             cells = [ft.DataCell(ft.Text(str(value))) for value in row_values]
             
             # Добавляем кнопки управления, если есть обработчики
-            if self.on_edit or self.on_delete:
+            if self.on_edit or self.on_delete or self.custom_actions:
                 action_buttons = []
+                
+                # Добавляем пользовательские действия
+                for action in self.custom_actions:
+                    action_buttons.append(
+                        ft.IconButton(
+                            icon=action["icon"],
+                            icon_color=action.get("color", ft.Colors.BLUE),
+                            tooltip=action.get("tooltip", ""),
+                            on_click=lambda e, rid=row_id, callback=action["on_click"]: callback(rid)
+                        )
+                    )
+                
                 if self.on_edit:
                     action_buttons.append(
                         ft.IconButton(
@@ -127,9 +140,6 @@ class DataTable(ft.Container):
                 cells.append(ft.DataCell(ft.Row(action_buttons)))
             
             self.table.rows.append(ft.DataRow(cells=cells))
-        
-        if self.page:
-            self.update()
 
 
 class SearchBar(ft.Container):

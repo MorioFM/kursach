@@ -14,12 +14,13 @@ from settings.config import GENDERS
 class ChildrenView(ft.Container):
     """Представление для управления детьми"""
     
-    def __init__(self, db, on_refresh: Callable = None):
+    def __init__(self, db, on_refresh: Callable = None, page=None):
         super().__init__()
         self.db = db
         self.on_refresh = on_refresh
         self.selected_child = None
         self.search_query = ""
+        self.page = page
         
         # Поля формы
         self.last_name_field = ft.TextField(
@@ -125,7 +126,14 @@ class ChildrenView(ft.Container):
             ],
             rows=[],
             on_edit=self.edit_child,
-            on_delete=self.delete_child
+            on_delete=self.delete_child,
+            custom_actions=[
+                {
+                    "icon": ft.Icons.FAMILY_RESTROOM,
+                    "tooltip": "Привязать родителей",
+                    "on_click": self.manage_parents
+                }
+            ]
         )
         
         # Кнопка добавления
@@ -178,8 +186,6 @@ class ChildrenView(ft.Container):
             })
         
         self.data_table.set_rows(rows)
-        if self.page:
-            self.update()
     
     def show_add_form(self, e):
         """Показать форму добавления"""
@@ -330,6 +336,93 @@ class ChildrenView(ft.Container):
         """Обработка поиска"""
         self.search_query = query
         self.load_children(query)
+    
+    def manage_parents(self, child_id: str):
+        """Управление родителями ребенка"""
+        child = self.db.get_child_by_id(int(child_id))
+        if not child:
+            return
+        
+        # Получаем список всех родителей и текущих связей
+        all_parents = self.db.get_all_parents()
+        current_parents = self.db.get_parents_by_child(int(child_id))
+        current_parent_ids = [p['parent_id'] for p in current_parents]
+        
+        # Создаем диалог
+        parent_checkboxes = []
+        relationship_fields = {}
+        
+        for parent in all_parents:
+            is_selected = parent['parent_id'] in current_parent_ids
+            current_relationship = ""
+            if is_selected:
+                current_rel = next((p for p in current_parents if p['parent_id'] == parent['parent_id']), None)
+                if current_rel:
+                    current_relationship = current_rel['relationship']
+            
+            checkbox = ft.Checkbox(
+                label=parent['full_name'],
+                value=is_selected,
+                data=parent['parent_id']
+            )
+            
+            relationship_field = ft.TextField(
+                label="Степень родства",
+                value=current_relationship,
+                width=150,
+                hint_text="Мама, Папа..."
+            )
+            
+            parent_checkboxes.append(checkbox)
+            relationship_fields[parent['parent_id']] = relationship_field
+        
+        def save_relations(e):
+            try:
+                # Удаляем все старые связи
+                for parent_id in current_parent_ids:
+                    self.db.remove_parent_child_relation(parent_id, int(child_id))
+                
+                # Добавляем новые связи
+                for checkbox in parent_checkboxes:
+                    if checkbox.value:
+                        parent_id = checkbox.data
+                        relationship = relationship_fields[parent_id].value or "Родитель"
+                        self.db.add_parent_child_relation(parent_id, int(child_id), relationship)
+                
+                dialog.open = False
+                self.page.update()
+                
+            except Exception as ex:
+                self.show_error(f"Ошибка при сохранении: {str(ex)}")
+        
+        # Создаем список родителей с чекбоксами
+        parent_rows = []
+        for i, checkbox in enumerate(parent_checkboxes):
+            parent_id = checkbox.data
+            parent_rows.append(
+                ft.Row([
+                    checkbox,
+                    relationship_fields[parent_id]
+                ], spacing=10)
+            )
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f"Родители ребенка: {child['last_name']} {child['first_name']}"),
+            content=ft.Container(
+                content=ft.Column(parent_rows, scroll=ft.ScrollMode.AUTO),
+                width=400,
+                height=300
+            ),
+            actions=[
+                ft.TextButton("Отмена", on_click=lambda e: setattr(dialog, 'open', False) or self.page.update()),
+                ft.ElevatedButton("Сохранить", on_click=save_relations)
+            ]
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
     
     def show_error(self, message: str):
         """Показать ошибку"""
