@@ -84,6 +84,23 @@ class ParentChild(BaseModel):
         primary_key = CompositeKey('parent', 'child')
 
 
+class AttendanceRecord(BaseModel):
+    """Модель записи в журнале посещаемости"""
+    record_id = AutoField(primary_key=True)
+    child = ForeignKeyField(Child, backref='attendance_records', column_name='child_id')
+    date = DateField(null=False)
+    status = CharField(null=False)  # Присутствует, Отсутствует, Болеет
+    notes = TextField(null=True)  # Примечания
+    created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
+    
+    class Meta:
+        table_name = 'attendance_records'
+        indexes = (
+            (('child', 'date'), True),  # Уникальная запись на дату для ребенка
+        )
+
+
 class KindergartenDB:
     """Класс для работы с базой данных детского сада через Peewee ORM"""
     
@@ -100,10 +117,12 @@ class KindergartenDB:
         from settings.teachers_settings import TeachersSettings
         from settings.parents_settings import ParentsSettings
         from settings.groups_settings import GroupsSettings
+        from settings.attendance_settings import AttendanceSettings
         self._children_settings = ChildrenSettings()
         self._teachers_settings = TeachersSettings()
         self._parents_settings = ParentsSettings()
         self._groups_settings = GroupsSettings()
+        self._attendance_settings = AttendanceSettings()
     
     def connect(self):
         """Установить соединение с базой данных"""
@@ -119,7 +138,7 @@ class KindergartenDB:
     
     def create_tables(self):
         """Создать таблицы в базе данных"""
-        db.create_tables([Teacher, Group, Parent, Child, ParentChild])
+        db.create_tables([Teacher, Group, Parent, Child, ParentChild, AttendanceRecord])
         print("Tables created successfully")
     
     # === РАБОТА С ВОСПИТАТЕЛЯМИ ===
@@ -207,6 +226,17 @@ class KindergartenDB:
             parent_data['relationship'] = relation.relationship
             result.append(parent_data)
         return result
+    
+    # === РАБОТА С ЖУРНАЛОМ ПОСЕЩАЕМОСТИ ===
+    
+    def add_attendance_record(self, *args, **kwargs):
+        return self._attendance_settings.add_attendance_record(*args, **kwargs)
+    
+    def update_attendance_record(self, *args, **kwargs):
+        return self._attendance_settings.update_attendance_record(*args, **kwargs)
+    
+    def get_attendance_by_group_and_date(self, group_id: int, date: str):
+        return self._attendance_settings.get_attendance_by_group_and_date(group_id, date, self._children_settings)
     
     # === РАБОТА С ГРУППАМИ ===
     
