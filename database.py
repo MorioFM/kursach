@@ -141,71 +141,47 @@ class KindergartenDB:
         db.create_tables([Teacher, Group, Parent, Child, ParentChild, AttendanceRecord])
         print("Tables created successfully")
     
-    # === РАБОТА С ВОСПИТАТЕЛЯМИ ===
-    
-    def add_teacher(self, *args, **kwargs):
-        return self._teachers_settings.add_teacher(*args, **kwargs)
-    
-    def get_all_teachers(self):
-        return self._teachers_settings.get_all_teachers()
-    
-    def get_teacher_by_id(self, teacher_id: int):
-        return self._teachers_settings.get_teacher_by_id(teacher_id)
-    
-    def update_teacher(self, teacher_id: int, **kwargs):
-        return self._teachers_settings.update_teacher(teacher_id, **kwargs)
-    
-    def delete_teacher(self, teacher_id: int):
-        return self._teachers_settings.delete_teacher(teacher_id)
-    
-    def search_teachers(self, search_term: str):
-        return self._teachers_settings.search_teachers(search_term)
-    
-    # === РАБОТА С РОДИТЕЛЯМИ ===
-    
-    def add_parent(self, *args, **kwargs):
-        return self._parents_settings.add_parent(*args, **kwargs)
-    
-    def get_all_parents(self):
-        return self._parents_settings.get_all_parents()
-    
-    def get_parent_by_id(self, parent_id: int):
-        return self._parents_settings.get_parent_by_id(parent_id)
-    
-    def update_parent(self, parent_id: int, **kwargs):
-        return self._parents_settings.update_parent(parent_id, **kwargs)
-    
-    def delete_parent(self, parent_id: int):
-        return self._parents_settings.delete_parent(parent_id)
-    
-    def search_parents(self, search_term: str):
-        return self._parents_settings.search_parents(search_term)
-    
-    # === РАБОТА СО СВЯЗЯМИ РОДИТЕЛЬ-РЕБЕНОК ===
+    def __getattr__(self, name):
+        """Динамическое делегирование методов к соответствующим настройкам"""
+        # Методы для работы с воспитателями
+        teacher_methods = ['add_teacher', 'get_all_teachers', 'get_teacher_by_id', 'update_teacher', 'delete_teacher', 'search_teachers']
+        if name in teacher_methods:
+            return getattr(self._teachers_settings, name)
+        
+        # Методы для работы с родителями
+        parent_methods = ['add_parent', 'get_all_parents', 'get_parent_by_id', 'update_parent', 'delete_parent', 'search_parents']
+        if name in parent_methods:
+            return getattr(self._parents_settings, name)
+        
+        # Методы для работы с группами
+        group_methods = ['add_group', 'get_all_groups', 'get_group_by_id', 'update_group', 'delete_group']
+        if name in group_methods:
+            return getattr(self._groups_settings, name)
+        
+        # Методы для работы с детьми
+        child_methods = ['add_child', 'get_all_children', 'get_child_by_id', 'get_children_by_group', 'search_children', 
+                        'update_child', 'delete_child', 'transfer_child_to_group', 'bulk_transfer_children', 'get_children_without_group']
+        if name in child_methods:
+            return getattr(self._children_settings, name)
+        
+        # Методы для работы с посещаемостью
+        attendance_methods = ['add_attendance_record', 'update_attendance_record']
+        if name in attendance_methods:
+            return getattr(self._attendance_settings, name)
+        
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
     
     def add_parent_child_relation(self, parent_id: int, child_id: int, relationship: str):
         """Добавить связь родитель-ребенок"""
-        ParentChild.create(
-            parent=parent_id,
-            child=child_id,
-            relationship=relationship
-        )
+        ParentChild.create(parent=parent_id, child=child_id, relationship=relationship)
     
     def remove_parent_child_relation(self, parent_id: int, child_id: int):
         """Удалить связь родитель-ребенок"""
-        ParentChild.delete().where(
-            (ParentChild.parent == parent_id) & 
-            (ParentChild.child == child_id)
-        ).execute()
+        ParentChild.delete().where((ParentChild.parent == parent_id) & (ParentChild.child == child_id)).execute()
     
     def get_children_by_parent(self, parent_id: int):
         """Получить детей родителя"""
-        relations = (ParentChild
-                    .select(ParentChild, Child, Group)
-                    .join(Child)
-                    .join(Group, JOIN.LEFT_OUTER)
-                    .where(ParentChild.parent == parent_id))
-        
+        relations = (ParentChild.select(ParentChild, Child, Group).join(Child).join(Group, JOIN.LEFT_OUTER).where(ParentChild.parent == parent_id))
         result = []
         for relation in relations:
             child_data = self._children_settings._child_to_dict(relation.child)
@@ -215,11 +191,7 @@ class KindergartenDB:
     
     def get_parents_by_child(self, child_id: int):
         """Получить родителей ребенка"""
-        relations = (ParentChild
-                    .select(ParentChild, Parent)
-                    .join(Parent)
-                    .where(ParentChild.child == child_id))
-        
+        relations = (ParentChild.select(ParentChild, Parent).join(Parent).where(ParentChild.child == child_id))
         result = []
         for relation in relations:
             parent_data = self._parents_settings._parent_to_dict(relation.parent)
@@ -227,65 +199,8 @@ class KindergartenDB:
             result.append(parent_data)
         return result
     
-    # === РАБОТА С ЖУРНАЛОМ ПОСЕЩАЕМОСТИ ===
-    
-    def add_attendance_record(self, *args, **kwargs):
-        return self._attendance_settings.add_attendance_record(*args, **kwargs)
-    
-    def update_attendance_record(self, *args, **kwargs):
-        return self._attendance_settings.update_attendance_record(*args, **kwargs)
-    
     def get_attendance_by_group_and_date(self, group_id: int, date: str):
         return self._attendance_settings.get_attendance_by_group_and_date(group_id, date, self._children_settings)
-    
-    # === РАБОТА С ГРУППАМИ ===
-    
-    def add_group(self, *args, **kwargs):
-        return self._groups_settings.add_group(*args, **kwargs)
-    
-    def get_all_groups(self):
-        return self._groups_settings.get_all_groups()
-    
-    def get_group_by_id(self, group_id: int):
-        return self._groups_settings.get_group_by_id(group_id)
-    
-    def update_group(self, group_id: int, **kwargs):
-        return self._groups_settings.update_group(group_id, **kwargs)
-    
-    def delete_group(self, group_id: int):
-        return self._groups_settings.delete_group(group_id)
-    
-    # === РАБОТА С ДЕТЬМИ ===
-    
-    def add_child(self, *args, **kwargs):
-        return self._children_settings.add_child(*args, **kwargs)
-    
-    def get_all_children(self):
-        return self._children_settings.get_all_children()
-    
-    def get_child_by_id(self, child_id: int):
-        return self._children_settings.get_child_by_id(child_id)
-    
-    def get_children_by_group(self, group_id: int):
-        return self._children_settings.get_children_by_group(group_id)
-    
-    def search_children(self, search_term: str):
-        return self._children_settings.search_children(search_term)
-    
-    def update_child(self, child_id: int, **kwargs):
-        return self._children_settings.update_child(child_id, **kwargs)
-    
-    def delete_child(self, child_id: int):
-        return self._children_settings.delete_child(child_id)
-    
-    def transfer_child_to_group(self, child_id: int, new_group_id: int):
-        return self._children_settings.transfer_child_to_group(child_id, new_group_id)
-    
-    def bulk_transfer_children(self, child_ids: List[int], new_group_id: int):
-        return self._children_settings.bulk_transfer_children(child_ids, new_group_id)
-    
-    def get_children_without_group(self):
-        return self._children_settings.get_children_without_group()
     
 
     

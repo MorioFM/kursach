@@ -40,14 +40,14 @@ class InfoCard(ft.Container):
             content=ft.Column([
                 ft.Row([
                     ft.Icon(icon, color=color, size=30),
-                    ft.Text(title, size=14, color=ft.Colors.GREY_700),
+                    ft.Text(title, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
                 ]),
                 ft.Text(value, size=24, weight=ft.FontWeight.BOLD),
             ], spacing=5),
             padding=15,
             border_radius=10,
-            bgcolor=ft.Colors.WHITE,
-            border=ft.border.all(1, ft.Colors.GREY_300),
+
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
         )
 
 

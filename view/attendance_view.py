@@ -34,7 +34,14 @@ class AttendanceView(ft.Container):
         self.date_picker = ft.DatePicker(
             on_change=self.on_date_change,
             first_date=datetime(2020, 1, 1),
-            last_date=datetime(2030, 12, 31)
+            last_date=datetime(2030, 12, 31),
+            help_text="Выберите дату",
+            cancel_text="Отмена",
+            confirm_text="ОК",
+            error_format_text="Неверный формат даты",
+            error_invalid_text="Неверная дата",
+            field_hint_text="дд/мм/гггг",
+            field_label_text="Дата"
         )
         
         display_date = datetime.strptime(self.selected_date, '%Y-%m-%d').strftime('%d-%m-%Y')

@@ -2,22 +2,34 @@
 Главный файл приложения
 """
 import flet as ft
+import os
 from database import KindergartenDB
 from view.children_view import ChildrenView
 from view.groups_view import GroupsView
 from view.teachers_view import TeachersView
 from view.parents_view import ParentsView
 from view.attendance_view import AttendanceView
+from view.settings_view import SettingsView
+from view.home_view import HomeView
+from navigation_drawer import AppNavigationDrawer
 from settings.config import APP_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, DATABASE_NAME
 
 
 def main(page: ft.Page):
     """Главная функция приложения"""
+    icon_path = os.path.abspath("C:\Users\comp\Desktop\Курсовая\src\assets")
+    page.window.icon = icon_path
     page.title = APP_TITLE
     page.window.width = WINDOW_WIDTH
     page.window.height = WINDOW_HEIGHT
-    page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
+    
+    # Загружаем сохраненную тему
+    saved_theme = page.client_storage.get("app_theme")
+    if saved_theme == "dark":
+        page.theme_mode = ft.ThemeMode.DARK
+    else:
+        page.theme_mode = ft.ThemeMode.LIGHT
 
     # Создаем контейнер для заголовка с динамическим цветом
     header_container = ft.Container(
@@ -26,25 +38,33 @@ def main(page: ft.Page):
                 ft.IconButton(
                     icon=ft.Icons.MENU,
                     on_click=lambda e: page.open(page.drawer),
+                    key="menu_button"
                 ),
-                ft.Text(APP_TITLE, size=20, weight="bold"),
+                ft.Text(APP_TITLE, size=20, weight="bold", key="app_title"),
             ],
             alignment=ft.MainAxisAlignment.START,
         ),
         bgcolor=ft.Colors.ON_SURFACE_VARIANT,
-        padding=10
+        padding=10,
+        key="header_container"
     )
 
     def toggle_theme(e):
         page.theme_mode = ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
+        
+        # Сохраняем выбранную тему
+        theme_value = "dark" if page.theme_mode == ft.ThemeMode.DARK else "light"
+        page.client_storage.set("app_theme", theme_value)
+        
         # Обновляем цвет заголовка в зависимости от темы
-        header_container.bgcolor = ft.Colors.ON_SURFACE_VARIANT if page.theme_mode == ft.ThemeMode.DARK else ft.Colors.ON_SURFACE_VARIANT
+        header_container.bgcolor = ft.Colors.ON_SURFACE_VARIANT
         page.update()
 
     theme_switch = ft.Switch(
         label="Тема приложения",
         value=page.theme_mode == ft.ThemeMode.DARK,
-        on_change=toggle_theme
+        on_change=toggle_theme,
+        key="theme_switch"
     )
     
     # Инициализация базы данных
@@ -53,21 +73,25 @@ def main(page: ft.Page):
     db.create_tables()
     
     # Контейнер для текущего представления
-    content_container = ft.Container(expand=True)
+    content_container = ft.Container(expand=True, key="content_container")
     
     # Создаем представления
+    home_view = HomeView(db, lambda: refresh_current_view(), page)
     children_view = ChildrenView(db, lambda: refresh_current_view(), page)
     groups_view = GroupsView(db, lambda: refresh_current_view())
     teachers_view = TeachersView(db, lambda: refresh_current_view())
     parents_view = ParentsView(db, lambda: refresh_current_view(), page)
     attendance_view = AttendanceView(db, lambda: refresh_current_view(), page)
+    settings_view = SettingsView(page, theme_switch)
     
     # Текущее представление
-    current_view = [children_view]
+    current_view = [home_view]
     
     def refresh_current_view():
         """Обновить текущее представление"""
-        if current_view[0] == children_view:
+        if current_view[0] == home_view:
+            home_view.load_home()
+        elif current_view[0] == children_view:
             children_view.load_children()
         elif current_view[0] == groups_view:
             groups_view.load_groups()
@@ -77,14 +101,32 @@ def main(page: ft.Page):
             parents_view.load_parents()
         elif current_view[0] == attendance_view:
             attendance_view.load_attendance()
+        elif current_view[0] == settings_view:
+            settings_view.load_settings()
     
-    def switch_view(view, e=None):
+    def switch_view(view_name, e=None):
         """Переключить представление"""
+        view_map = {
+            "home": home_view,
+            "children": children_view,
+            "groups": groups_view,
+            "teachers": teachers_view,
+            "parents": parents_view,
+            "attendance": attendance_view,
+            "settings": settings_view
+        }
+        
+        view = view_map.get(view_name)
+        if not view:
+            return
+            
         current_view[0] = view
         content_container.content = view
         
         # Загрузить данные для представления
-        if view == children_view:
+        if view == home_view:
+            home_view.load_home()
+        elif view == children_view:
             children_view.load_children()
         elif view == groups_view:
             groups_view.load_groups()
@@ -94,52 +136,15 @@ def main(page: ft.Page):
             parents_view.load_parents()
         elif view == attendance_view:
             attendance_view.load_attendance()
+        elif view == settings_view:
+            settings_view.load_settings()
         
         page.drawer.open = False
         page.update()
 
 
 
-    def handle_change(e):
-        page.drawer.open = False
-        page.update()
-    
-    page.drawer = ft.NavigationDrawer(
-        on_change=handle_change,
-        controls=[
-            ft.Container(height=20),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.CHILD_CARE_OUTLINED),
-                title=ft.Text("Дети"),
-                on_click=lambda e: switch_view(children_view, e)
-            ),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.GROUPS_OUTLINED),
-                title=ft.Text("Группы"),
-                on_click=lambda e: switch_view(groups_view, e)
-            ),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.PERSON_OUTLINED),
-                title=ft.Text("Воспитатели"),
-                on_click=lambda e: switch_view(teachers_view, e)
-            ),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.FAMILY_RESTROOM_OUTLINED),
-                title=ft.Text("Родители"),
-                on_click=lambda e: switch_view(parents_view, e)
-            ),
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.ASSIGNMENT_OUTLINED),
-                title=ft.Text("Журнал посещаемости"),
-                on_click=lambda e: switch_view(attendance_view, e)
-            ),
-            ft.Divider(),
-            ft.Container(
-                content=theme_switch,
-                padding=ft.padding.only(left=16)
-            )
-        ]
-    )
+    page.drawer = AppNavigationDrawer(switch_view)
 
     
     
@@ -157,7 +162,7 @@ def main(page: ft.Page):
     # )
     
     # Загружаем начальное представление
-    switch_view(children_view)
+    switch_view("home")
 
 
 if __name__ == "__main__":
