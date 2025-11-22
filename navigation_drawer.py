@@ -51,6 +51,12 @@ class AppNavigationDrawer(ft.NavigationDrawer):
                     on_click=lambda e: self.on_view_change("attendance", e),
                     key="nav_attendance"
                 ),
+                ft.ListTile(
+                    leading=ft.Icon(ft.Icons.CALENDAR_MONTH_OUTLINED),
+                    title=ft.Text("Электронный журнал"),
+                    on_click=lambda e: self.on_view_change("electronic_journal", e),
+                    key="nav_electronic_journal"
+                ),
                 ft.Divider(),
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.SETTINGS_OUTLINED),

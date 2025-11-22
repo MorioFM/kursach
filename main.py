@@ -9,6 +9,7 @@ from view.groups_view import GroupsView
 from view.teachers_view import TeachersView
 from view.parents_view import ParentsView
 from view.attendance_view import AttendanceView
+from view.electronic_journal_view import ElectronicJournalView
 from view.settings_view import SettingsView
 from view.home_view import HomeView
 from navigation_drawer import AppNavigationDrawer
@@ -17,7 +18,7 @@ from settings.config import APP_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, DATABASE_NAM
 
 def main(page: ft.Page):
     """Главная функция приложения"""
-    icon_path = os.path.abspath("C:\Users\comp\Desktop\Курсовая\src\assets")
+    icon_path = os.path.abspath("C:/Users/comp/Desktop/Курсовая/src/assets/x2729757-656704773 (1).ico")
     page.window.icon = icon_path
     page.title = APP_TITLE
     page.window.width = WINDOW_WIDTH
@@ -84,6 +85,9 @@ def main(page: ft.Page):
     attendance_view = AttendanceView(db, lambda: refresh_current_view(), page)
     settings_view = SettingsView(page, theme_switch)
     
+    # Создаем electronic_journal_view после добавления страницы
+    electronic_journal_view = None
+    
     # Текущее представление
     current_view = [home_view]
     
@@ -101,6 +105,9 @@ def main(page: ft.Page):
             parents_view.load_parents()
         elif current_view[0] == attendance_view:
             attendance_view.load_attendance()
+        elif current_view[0] == electronic_journal_view:
+            if hasattr(electronic_journal_view, 'build_journal'):
+                electronic_journal_view.build_journal()
         elif current_view[0] == settings_view:
             settings_view.load_settings()
     
@@ -113,6 +120,7 @@ def main(page: ft.Page):
             "teachers": teachers_view,
             "parents": parents_view,
             "attendance": attendance_view,
+            "electronic_journal": electronic_journal_view,
             "settings": settings_view
         }
         
@@ -136,6 +144,9 @@ def main(page: ft.Page):
             parents_view.load_parents()
         elif view == attendance_view:
             attendance_view.load_attendance()
+        elif view == electronic_journal_view:
+            if hasattr(electronic_journal_view, 'build_journal'):
+                electronic_journal_view.build_journal()
         elif view == settings_view:
             settings_view.load_settings()
         
@@ -160,6 +171,9 @@ def main(page: ft.Page):
     #         content_container,
     #     ], expand=True)
     # )
+    
+    # Создаем electronic_journal_view после инициализации страницы
+    electronic_journal_view = ElectronicJournalView(db, lambda: refresh_current_view(), page)
     
     # Загружаем начальное представление
     switch_view("home")
