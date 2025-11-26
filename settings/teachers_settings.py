@@ -7,7 +7,7 @@ class TeachersSettings:
     """Класс для работы с воспитателями в детском саду"""
     
     def add_teacher(self, last_name: str, first_name: str, middle_name: str = None,
-                   phone: str = None, email: str = None) -> int:
+                   phone: str = None, email: str = None, birth_date: str = None, address: str = None, education: str = None, experience: int = None) -> int:
         """
         Добавить нового воспитателя
         
@@ -17,6 +17,10 @@ class TeachersSettings:
             middle_name: отчество (опционально)
             phone: телефон (опционально)
             email: email (опционально)
+            birth_date: дата рождения (опционально)
+            address: адрес (опционально)
+            education: образование (опционально)
+            experience: стаж работы (опционально)
         
         Returns:
             ID созданного воспитателя
@@ -26,7 +30,11 @@ class TeachersSettings:
             first_name=first_name,
             middle_name=middle_name,
             phone=phone,
-            email=email
+            email=email,
+            birth_date=birth_date,
+            address=address,
+            education=education,
+            experience=experience
         )
         return teacher.teacher_id
     
@@ -45,7 +53,7 @@ class TeachersSettings:
     
     def update_teacher(self, teacher_id: int, **kwargs):
         """Обновить информацию о воспитателе"""
-        allowed_fields = {'last_name', 'first_name', 'middle_name', 'phone', 'email'}
+        allowed_fields = {'last_name', 'first_name', 'middle_name', 'phone', 'email', 'birth_date', 'address', 'education', 'experience'}
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
         
         if updates:
@@ -84,5 +92,9 @@ class TeachersSettings:
                         (f" {teacher.middle_name}" if teacher.middle_name else ""),
             'phone': teacher.phone or '',
             'email': teacher.email or '',
+            'birth_date': getattr(teacher, 'birth_date', None) or '',
+            'address': getattr(teacher, 'address', None) or '',
+            'education': getattr(teacher, 'education', None) or '',
+            'experience': getattr(teacher, 'experience', None),
             'created_at': teacher.created_at.isoformat() if teacher.created_at else None
         }

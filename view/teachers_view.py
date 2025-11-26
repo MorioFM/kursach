@@ -6,6 +6,7 @@ from typing import Callable
 from components import DataTable, SearchBar
 from dialogs import show_confirm_dialog
 from settings.config import PRIMARY_COLOR
+from pages_styles.styles import AppStyles
 
 
 class TeachersView(ft.Container):
@@ -20,22 +21,12 @@ class TeachersView(ft.Container):
         self.search_query = ""
         
         # Поля формы
-        self.last_name_field = ft.TextField(
-            label="Фамилия *",
-            width=300,
-            autofocus=True
-        )
-        self.last_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.last_name_field = AppStyles.text_field("Фамилия", required=True, autofocus=True)
+        self.last_name_error = AppStyles.error_text()
         
-        self.first_name_field = ft.TextField(
-            label="Имя *",
-            width=300
-        )
-        self.first_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
-        self.middle_name_field = ft.TextField(
-            label="Отчество",
-            width=300
-        )
+        self.first_name_field = AppStyles.text_field("Имя", required=True)
+        self.first_name_error = AppStyles.error_text()
+        self.middle_name_field = AppStyles.text_field("Отчество")
         # Код страны
         self.country_code_dropdown = ft.Dropdown(
             label="Код страны",
@@ -59,50 +50,38 @@ class TeachersView(ft.Container):
             max_length=15,
             on_change=self.format_phone
         )
-        self.email_field = ft.TextField(
-            label="Email",
-            width=300,
-            keyboard_type=ft.KeyboardType.EMAIL
-        )
+        self.email_field = AppStyles.text_field("Email", keyboard_type=ft.KeyboardType.EMAIL)
+        
+        self.education_field = AppStyles.text_field("Образование", multiline=True, max_lines=3)
+        
+        self.experience_field = AppStyles.text_field("Стаж работы (лет)", keyboard_type=ft.KeyboardType.NUMBER)
+        
+        self.birth_date_field = AppStyles.text_field("Дата рождения", hint_text="дд-мм-гггг", max_length=10, on_change=self.format_birth_date)
+        
+        self.address_field = AppStyles.text_field("Адрес проживания", multiline=True, max_lines=2)
         
         # Кнопки формы
-        self.save_button = ft.ElevatedButton(
-            "Сохранить",
-            icon=ft.Icons.SAVE,
-            on_click=self.save_teacher,
-            bgcolor=PRIMARY_COLOR,
-            color=ft.Colors.WHITE
-        )
-        self.cancel_button = ft.OutlinedButton(
-            "Отмена",
-            icon=ft.Icons.CANCEL,
-            on_click=self.cancel_edit
-        )
+        self.save_button = AppStyles.primary_button("Сохранить", icon=ft.Icons.SAVE, on_click=self.save_teacher)
+        self.cancel_button = AppStyles.secondary_button("Отмена", icon=ft.Icons.CANCEL, on_click=self.cancel_edit)
         
         # Форма
-        self.form_title = ft.Text("Добавить воспитателя", size=20, weight=ft.FontWeight.BOLD)
-        self.form_container = ft.Container(
-            content=ft.Column([
+        self.form_title = AppStyles.form_title("Добавить воспитателя")
+        self.form_container = AppStyles.form_container(
+            AppStyles.form_column([
                 self.form_title,
                 self.last_name_field,
                 self.last_name_error,
                 self.first_name_field,
                 self.first_name_error,
                 self.middle_name_field,
-                ft.Row([
-                    self.country_code_dropdown,
-                    self.phone_field
-                ], spacing=10),
+                AppStyles.form_row([self.country_code_dropdown, self.phone_field]),
                 self.email_field,
-                ft.Row([
-                    self.save_button,
-                    self.cancel_button
-                ], spacing=10)
-            ], spacing=5),
-            padding=20,
-            border=ft.border.all(1, ft.Colors.OUTLINE),
-            border_radius=10,
-            visible=False
+                self.birth_date_field,
+                self.address_field,
+                self.education_field,
+                self.experience_field,
+                AppStyles.button_row([self.save_button, self.cancel_button])
+            ])
         )
         
         # Поиск
@@ -110,33 +89,25 @@ class TeachersView(ft.Container):
         
         # Таблица
         self.data_table = DataTable(
-            columns=["№", "ФИО", "Телефон", "Email"],
+            columns=["№", "ФИО", "Телефон", "Email", "Дата рождения", "Адрес"],
             rows=[],
             on_edit=self.edit_teacher,
             on_delete=self.delete_teacher
         )
         
         # Кнопка добавления
-        add_button = ft.ElevatedButton(
-            "Добавить воспитателя",
-            icon=ft.Icons.ADD,
-            on_click=self.show_add_form,
-            bgcolor=PRIMARY_COLOR,
-            color=ft.Colors.WHITE
-        )
+        add_button = AppStyles.primary_button("Добавить воспитателя", icon=ft.Icons.ADD, on_click=self.show_add_form)
         
         # Загружаем данные
         self.load_teachers()
         
-        self.content = ft.Column([
-            ft.Row([
-                ft.Text("Воспитатели", size=24, weight=ft.FontWeight.BOLD),
-                add_button
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        self.content = AppStyles.form_column([
+            AppStyles.page_header("Воспитатели", "Добавить воспитателя", self.show_add_form),
             self.form_container,
             self.search_bar,
             self.data_table
-        ], spacing=20, expand=True)
+        ], spacing=20)
+        self.expand = True
     
     def on_search(self, query: str):
         """Обработчик поиска"""
@@ -159,7 +130,9 @@ class TeachersView(ft.Container):
                     str(i), # Порядковый номер
                     teacher.get('full_name', ''),
                     teacher.get('phone', ''),
-                    teacher.get('email', '')
+                    teacher.get('email', ''),
+                    teacher.get('birth_date', ''),
+                    teacher.get('address', '')
                 ]
             })
         
@@ -200,6 +173,10 @@ class TeachersView(ft.Container):
                 self.phone_field.value = phone
             
             self.email_field.value = teacher['email'] or ''
+            self.birth_date_field.value = teacher.get('birth_date') or ''
+            self.address_field.value = teacher.get('address') or ''
+            self.education_field.value = teacher.get('education') or ''
+            self.experience_field.value = str(teacher.get('experience') or '')
             
             self.form_title.value = "Редактировать воспитателя"
             self.form_container.visible = True
@@ -292,6 +269,26 @@ class TeachersView(ft.Container):
         e.control.value = formatted
         e.control.update()
     
+    def format_birth_date(self, e):
+        """Форматирование даты рождения в формате дд-мм-гггг"""
+        value = e.control.value
+        digits = ''.join(filter(str.isdigit, value))
+        
+        # Ограничиваем до 8 цифр
+        if len(digits) > 8:
+            digits = digits[:8]
+        
+        # Применяем маску дд-мм-гггг
+        if len(digits) <= 2:
+            formatted = digits
+        elif len(digits) <= 4:
+            formatted = f"{digits[:2]}-{digits[2:]}"
+        else:
+            formatted = f"{digits[:2]}-{digits[2:4]}-{digits[4:]}"
+        
+        e.control.value = formatted
+        e.control.update()
+    
     def clear_field_errors(self):
         """Очистить все сообщения об ошибках"""
         self.last_name_error.visible = False
@@ -337,7 +334,11 @@ class TeachersView(ft.Container):
                     first_name=self.first_name_field.value,
                     middle_name=self.middle_name_field.value or None,
                     phone=full_phone,
-                    email=self.email_field.value or None
+                    email=self.email_field.value or None,
+                    birth_date=self.birth_date_field.value or None,
+                    address=self.address_field.value or None,
+                    education=self.education_field.value or None,
+                    experience=int(self.experience_field.value) if self.experience_field.value and self.experience_field.value.isdigit() else None
                 )
                 self.show_success("Воспитатель успешно обновлен")
             else:
@@ -352,7 +353,11 @@ class TeachersView(ft.Container):
                     first_name=self.first_name_field.value,
                     middle_name=self.middle_name_field.value or None,
                     phone=full_phone,
-                    email=self.email_field.value or None
+                    email=self.email_field.value or None,
+                    birth_date=self.birth_date_field.value or None,
+                    address=self.address_field.value or None,
+                    education=self.education_field.value or None,
+                    experience=int(self.experience_field.value) if self.experience_field.value and self.experience_field.value.isdigit() else None
                 )
                 self.show_success("Воспитатель успешно добавлен")
             
@@ -379,6 +384,10 @@ class TeachersView(ft.Container):
         self.country_code_dropdown.value = "+7"
         self.phone_field.value = ""
         self.email_field.value = ""
+        self.birth_date_field.value = ""
+        self.address_field.value = ""
+        self.education_field.value = ""
+        self.experience_field.value = ""
         self.clear_field_errors()
     
     def show_error(self, message: str):

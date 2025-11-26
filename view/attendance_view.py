@@ -104,7 +104,8 @@ class AttendanceView(ft.Container):
                 "В выбранной группе нет детей", 
                 size=16
             )
-            self.attendance_container.update()
+            if self.page:
+                self.page.update()
             return
         
         # Создаем таблицу с редактируемыми ячейками
@@ -118,24 +119,14 @@ class AttendanceView(ft.Container):
                     ft.DropdownOption("Отсутствует", "Отсутствует"),
                     ft.DropdownOption("Болеет", "Болеет")
                 ],
-                on_change=lambda e, child_id=child['child_id']: self.update_status(child_id, e.control.value)
-            )
-            
-            notes_field = ft.TextField(
-                value=child['notes'],
-                width=200,
-                multiline=True,
-                min_lines=1,
-                max_lines=3,
-                on_change=lambda e, child_id=child['child_id']: self.update_notes(child_id, e.control.value)
+                on_change=lambda e, child_id=child['child_id']: self.update_status(child_id, e.control.value, '')
             )
             
             rows.append(
                 ft.DataRow(
                     cells=[
                         ft.DataCell(ft.Text(f"{child['last_name']} {child['first_name']}")),
-                        ft.DataCell(status_dropdown),
-                        ft.DataCell(notes_field)
+                        ft.DataCell(status_dropdown)
                     ]
                 )
             )
@@ -143,8 +134,7 @@ class AttendanceView(ft.Container):
         attendance_table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("Ребенок")),
-                ft.DataColumn(ft.Text("Статус")),
-                ft.DataColumn(ft.Text("Примечания"))
+                ft.DataColumn(ft.Text("Статус"))
             ],
             rows=rows,
             border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
@@ -159,33 +149,17 @@ class AttendanceView(ft.Container):
             attendance_table
         ], scroll=ft.ScrollMode.AUTO)
         
-        self.attendance_container.update()
+        if self.page:
+            self.page.update()
     
-    def update_status(self, child_id: int, status: str):
+    def update_status(self, child_id: int, status: str, notes: str = ''):
         """Обновление статуса посещаемости в реальном времени"""
         try:
-            self.db.update_attendance_record(child_id, self.selected_date, status)
+            self.db.update_attendance_record(child_id, self.selected_date, status, notes)
         except Exception as ex:
             self.show_error(f"Ошибка при обновлении статуса: {str(ex)}")
     
-    def update_notes(self, child_id: int, notes: str):
-        """Обновление примечаний в реальном времени"""
-        try:
-            # Получаем текущий статус
-            children_data = self.db.get_attendance_by_group_and_date(
-                self.selected_group_id, 
-                self.selected_date
-            )
-            current_child = next((c for c in children_data if c['child_id'] == child_id), None)
-            if current_child:
-                self.db.update_attendance_record(
-                    child_id, 
-                    self.selected_date, 
-                    current_child['status'], 
-                    notes
-                )
-        except Exception as ex:
-            self.show_error(f"Ошибка при обновлении примечаний: {str(ex)}")
+
     
     def show_error(self, message: str):
         """Показать ошибку"""

@@ -6,6 +6,7 @@ from typing import Callable
 from components import DataTable, SearchBar
 from dialogs import show_confirm_dialog
 from settings.config import PRIMARY_COLOR
+from pages_styles.styles import AppStyles
 
 
 class ParentsView(ft.Container):
@@ -20,18 +21,11 @@ class ParentsView(ft.Container):
         self.search_query = ""
         
         # Поля формы
-        self.last_name_field = ft.TextField(
-            label="Фамилия *",
-            width=300,
-            autofocus=True
-        )
-        self.last_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.last_name_field = AppStyles.text_field("Фамилия", required=True, autofocus=True)
+        self.last_name_error = AppStyles.error_text()
         
-        self.first_name_field = ft.TextField(
-            label="Имя *",
-            width=300
-        )
-        self.first_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.first_name_field = AppStyles.text_field("Имя", required=True)
+        self.first_name_error = AppStyles.error_text()
         self.middle_name_field = ft.TextField(
             label="Отчество",
             width=300
@@ -125,26 +119,18 @@ class ParentsView(ft.Container):
         )
         
         # Кнопка добавления
-        add_button = ft.ElevatedButton(
-            "Добавить родителя",
-            icon=ft.Icons.ADD,
-            on_click=self.show_add_form,
-            bgcolor=PRIMARY_COLOR,
-            color=ft.Colors.WHITE
-        )
+        add_button = AppStyles.primary_button("Добавить родителя", icon=ft.Icons.ADD, on_click=self.show_add_form)
         
         # Загружаем данные
         self.load_parents()
         
-        self.content = ft.Column([
-            ft.Row([
-                ft.Text("Родители", size=24, weight=ft.FontWeight.BOLD),
-                add_button
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        self.content = AppStyles.form_column([
+            AppStyles.page_header("Родители", "Добавить родителя", self.show_add_form),
             self.form_container,
             self.search_bar,
             self.data_table
-        ], spacing=20, expand=True)
+        ], spacing=20)
+        self.expand = True
     
     def on_search(self, query: str):
         """Обработчик поиска"""

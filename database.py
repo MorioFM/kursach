@@ -20,6 +20,10 @@ class Teacher(BaseModel):
     middle_name = CharField(null=True)
     phone = CharField(null=True)
     email = CharField(null=True)
+    birth_date = CharField(null=True)
+    address = TextField(null=True)
+    education = TextField(null=True)
+    experience = IntegerField(null=True)
     created_at = DateTimeField(default=datetime.now)
     
     class Meta:
@@ -101,6 +105,18 @@ class AttendanceRecord(BaseModel):
         )
 
 
+class User(BaseModel):
+    """Модель пользователя"""
+    user_id = AutoField(primary_key=True)
+    username = CharField(unique=True, null=False)
+    password = CharField(null=False)  # Хеш пароля
+    role = CharField(default='admin')  # Роль пользователя
+    created_at = DateTimeField(default=datetime.now)
+    
+    class Meta:
+        table_name = 'users'
+
+
 class KindergartenDB:
     """Класс для работы с базой данных детского сада через Peewee ORM"""
     
@@ -138,7 +154,14 @@ class KindergartenDB:
     
     def create_tables(self):
         """Создать таблицы в базе данных"""
-        db.create_tables([Teacher, Group, Parent, Child, ParentChild, AttendanceRecord])
+        db.create_tables([Teacher, Group, Parent, Child, ParentChild, AttendanceRecord, User])
+        # Создаем администратора по умолчанию
+        try:
+            User.get(User.username == 'admin')
+        except:
+            import hashlib
+            password_hash = hashlib.sha256('admin'.encode()).hexdigest()
+            User.create(username='admin', password=password_hash, role='admin')
         print("Tables created successfully")
     
     def __getattr__(self, name):
@@ -201,6 +224,16 @@ class KindergartenDB:
     
     def get_attendance_by_group_and_date(self, group_id: int, date: str):
         return self._attendance_settings.get_attendance_by_group_and_date(group_id, date, self._children_settings)
+    
+    def authenticate_user(self, username: str, password: str):
+        """Проверка авторизации пользователя"""
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        try:
+            user = User.get((User.username == username) & (User.password == password_hash))
+            return {'user_id': user.user_id, 'username': user.username, 'role': user.role}
+        except:
+            return None
     
 
     

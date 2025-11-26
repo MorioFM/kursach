@@ -6,31 +6,25 @@ from typing import Callable
 from components import DataTable, InfoCard
 from dialogs import show_confirm_dialog
 from settings.config import AGE_CATEGORIES
+from pages_styles.styles import AppStyles
 
 
 class GroupsView(ft.Container):
     """Представление для управления группами"""
     
-    def __init__(self, db, on_refresh: Callable = None):
+    def __init__(self, db, on_refresh: Callable = None, page=None):
         super().__init__()
         self.db = db
         self.on_refresh = on_refresh
+        self.page = page
         self.selected_group = None
         
         # Поля формы
-        self.group_name_field = ft.TextField(
-            label="Название группы",
-            width=300,
-            autofocus=True
-        )
-        self.group_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.group_name_field = AppStyles.text_field("Название группы", required=True, autofocus=True)
+        self.group_name_error = AppStyles.error_text()
         
-        self.age_category_dropdown = ft.Dropdown(
-            label="Возрастная категория",
-            width=300,
-            options=[ft.DropdownOption(k, v) for k, v in AGE_CATEGORIES.items()]
-        )
-        self.age_category_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.age_category_dropdown = AppStyles.dropdown_field("Возрастная категория", [ft.DropdownOption(k, v) for k, v in AGE_CATEGORIES.items()], required=True)
+        self.age_category_error = AppStyles.error_text()
         self.teacher_dropdown = ft.Dropdown(
             label="Воспитатель",
             width=300,
@@ -52,16 +46,8 @@ class GroupsView(ft.Container):
         )
 
         # Кнопки формы
-        self.save_button = ft.ElevatedButton(
-            "Сохранить",
-            icon=ft.Icons.SAVE,
-            on_click=self.save_group
-        )
-        self.cancel_button = ft.OutlinedButton(
-            "Отмена",
-            icon=ft.Icons.CANCEL,
-            on_click=self.cancel_edit
-        )
+        self.save_button = AppStyles.primary_button("Сохранить", icon=ft.Icons.SAVE, on_click=self.save_group)
+        self.cancel_button = AppStyles.secondary_button("Отмена", icon=ft.Icons.CANCEL, on_click=self.cancel_edit)
         
         # Форма
         self.form_container = ft.Container(
@@ -85,62 +71,118 @@ class GroupsView(ft.Container):
         )
         
         # Таблица
-        self.data_table = DataTable(
-            # Убираем "ID" из видимых столбцов
-            columns=["№", "Название", "Возрастная категория", "Воспитатель", "Кол-во детей"],
-            # Убираем неработающий аргумент hide_columns
-            rows=[],
-            on_edit=self.edit_group,
-            on_delete=self.delete_group,
+        self.data_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("№")),
+                ft.DataColumn(ft.Text("Название")),
+                ft.DataColumn(ft.Text("Возрастная категория")),
+                ft.DataColumn(ft.Text("Воспитатель")),
+                ft.DataColumn(ft.Text("Кол-во детей")),
+                ft.DataColumn(ft.Text("Действия"))
+            ],
+            rows=[]
         )
         
         # Кнопка добавления
-        add_button = ft.ElevatedButton(
-            "Добавить группу",
-            icon=ft.Icons.ADD,
-            on_click=self.show_add_form
-        )
+        add_button = AppStyles.primary_button("Добавить группу", icon=ft.Icons.ADD, on_click=self.show_add_form)
         
-        self.content = ft.Column([
-            ft.Row([
-                ft.Text("Группы", size=24, weight=ft.FontWeight.BOLD),
-                add_button
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        self.content = AppStyles.form_column([
+            AppStyles.page_header("Группы", "Добавить группу", self.show_add_form),
             self.form_container,
             self.data_table
-        ], spacing=20, expand=True)
+        ], spacing=20)
+        self.expand = True
+    
+    def show_teacher_info(self, teacher_id):
+        """Показать информацию о воспитателе"""
+        try:
+            teacher = self.db.get_teacher_by_id(teacher_id)
+            if not teacher:
+                return
+            
+            dialog = ft.AlertDialog(
+                title=ft.Text("Информация о воспитателе"),
+                content=ft.Column([
+                    ft.Text(f"ФИО: {teacher.get('last_name', '')} {teacher.get('first_name', '')} {teacher.get('middle_name', '') or ''}"),
+                    ft.Text(f"Телефон: {teacher.get('phone') or 'Не указан'}"),
+                    ft.Text(f"Email: {teacher.get('email') or 'Не указан'}"),
+                    ft.Text(f"Образование: {teacher.get('education') or 'Не указано'}"),
+                    ft.Text(f"Опыт работы: {teacher.get('experience') or 0} лет")
+                ], tight=True),
+                actions=[
+                    ft.TextButton("Закрыть", on_click=lambda e: self.close_dialog())
+                ]
+            )
+            
+            if self.page:
+                self.page.overlay.append(dialog)
+                dialog.open = True
+                self.page.update()
+                
+        except Exception as ex:
+            print(f"Ошибка получения информации о воспитателе: {ex}")
+    
+    def close_dialog(self):
+        """Закрыть диалог"""
+        if self.page and self.page.overlay:
+            self.page.overlay.clear()
+            self.page.update()
     
     def load_groups(self):
         """Загрузка списка групп"""
         groups = self.db.get_all_groups()
         
-        rows = []
+        self.data_table.rows.clear()
+        
         for i, group in enumerate(groups, 1):
             teacher_name = group.get('teacher_name', 'Не назначен')
+            teacher_id = group.get('teacher_id')
             
             # Получаем актуальное количество детей в группе
             try:
                 children_in_group = self.db.get_children_by_group(group['group_id'])
                 children_count = len(children_in_group)
             except Exception:
-                # Если метод не найден или произошла ошибка, используем старое значение
                 children_count = group.get('children_count', 0)
 
-            # Передаем данные в виде словаря: id для операций и values для отображения
-            rows.append({
-                "id": group['group_id'],
-                "values": [
-                    str(i),             # №
-                    group['group_name'], # Название
-                    AGE_CATEGORIES.get(group['age_category'], group['age_category']), # Категория
-                    teacher_name,       # Воспитатель
-                    str(children_count) # Кол-во детей
+            # Создаем кликабельное имя воспитателя
+            if teacher_id:
+                teacher_cell = ft.DataCell(
+                    ft.TextButton(
+                        teacher_name,
+                        on_click=lambda e, tid=teacher_id: self.show_teacher_info(tid)
+                    )
+                )
+            else:
+                teacher_cell = ft.DataCell(ft.Text(teacher_name))
+            
+            row = ft.DataRow(
+                cells=[
+                    ft.DataCell(ft.Text(str(i))),
+                    ft.DataCell(ft.Text(group['group_name'])),
+                    ft.DataCell(ft.Text(AGE_CATEGORIES.get(group['age_category'], group['age_category']))),
+                    teacher_cell,
+                    ft.DataCell(ft.Text(str(children_count))),
+                    ft.DataCell(
+                        ft.Row([
+                            ft.IconButton(
+                                icon=ft.Icons.EDIT,
+                                tooltip="Редактировать",
+                                on_click=lambda e, gid=group['group_id']: self.edit_group(str(gid))
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE,
+                                tooltip="Удалить",
+                                on_click=lambda e, gid=group['group_id']: self.delete_group(str(gid))
+                            )
+                        ], spacing=5)
+                    )
                 ]
-            })
+            )
+            self.data_table.rows.append(row)
         
-        self.data_table.set_rows(rows)
         if self.page:
-            self.update()
+            self.page.update()
     
     def show_add_form(self, e):
         """Показать форму добавления"""
@@ -150,7 +192,8 @@ class GroupsView(ft.Container):
         self.form_container.content.controls[0].value = "Добавить группу"
         self.form_container.visible = True
         self._load_children_for_form()
-        self.update()
+        if self.page:
+            self.page.update()
     
     def edit_group(self, group_id: str):
         """Редактировать группу"""
@@ -165,7 +208,8 @@ class GroupsView(ft.Container):
             self._load_children_for_form(group_id=int(group_id))
             self.form_container.content.controls[0].value = "Редактировать группу"
             self.form_container.visible = True
-            self.update()
+            if self.page:
+                self.page.update()
     
     def delete_group(self, group_id: str):
         """Удалить группу"""
@@ -207,7 +251,8 @@ class GroupsView(ft.Container):
             is_valid = False
         
         if not is_valid:
-            self.update()
+            if self.page:
+                self.page.update()
         
         return is_valid
     
@@ -249,7 +294,8 @@ class GroupsView(ft.Container):
             self.load_groups()
             if self.on_refresh:
                 self.on_refresh()
-            self.update()
+            if self.page:
+                self.page.update()
             
         except Exception as ex:
             self.show_error(f"Ошибка при сохранении: {str(ex)}")
@@ -258,7 +304,8 @@ class GroupsView(ft.Container):
         """Отменить редактирование"""
         self.form_container.visible = False
         self.clear_form()
-        self.update()
+        if self.page:
+            self.page.update()
     
     def clear_form(self):
         """Очистить форму"""
@@ -279,10 +326,12 @@ class GroupsView(ft.Container):
         self.teacher_dropdown.options.insert(0, ft.DropdownOption(key="0", text="Не назначен"))
         
         if self.page:
-            self.update()
+            self.page.update()
     
     def _load_children_for_form(self, group_id: int | None = None):
         """Загружает список детей в форму для выбора."""
+        from datetime import datetime, date
+        
         self.children_list_view.controls.clear()
         all_children = self.db.get_all_children()
         
@@ -302,6 +351,20 @@ class GroupsView(ft.Container):
             first_name = child.get('first_name', '')
             middle_name = child.get('middle_name', '')
             full_name = f"{last_name} {first_name} {middle_name}".strip()
+            
+            # Вычисляем возраст
+            try:
+                birth_date_str = child['birth_date']
+                if '-' in birth_date_str and len(birth_date_str.split('-')[0]) == 4:
+                    birth_date_obj = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
+                else:
+                    birth_date_obj = datetime.strptime(birth_date_str, "%d-%m-%Y").date()
+                
+                today = date.today()
+                age = today.year - birth_date_obj.year - ((today.month, today.day) < (birth_date_obj.month, birth_date_obj.day))
+                full_name += f" ({age} лет)"
+            except:
+                pass
             
             # Добавляем информацию о группе, если ребенок в другой группе
             if is_in_other_group:

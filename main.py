@@ -10,8 +10,10 @@ from view.teachers_view import TeachersView
 from view.parents_view import ParentsView
 from view.attendance_view import AttendanceView
 from view.electronic_journal_view import ElectronicJournalView
+from view.events_view import EventsView
 from view.settings_view import SettingsView
 from view.home_view import HomeView
+from view.login_view import LoginView
 from navigation_drawer import AppNavigationDrawer
 from settings.config import APP_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT, DATABASE_NAME
 
@@ -32,6 +34,12 @@ def main(page: ft.Page):
     else:
         page.theme_mode = ft.ThemeMode.LIGHT
 
+    def logout():
+        """Выход из системы"""
+        page.client_storage.remove("is_logged_in")
+        page.client_storage.remove("username")
+        show_login()
+    
     # Создаем контейнер для заголовка с динамическим цветом
     header_container = ft.Container(
         content=ft.Row(
@@ -42,6 +50,13 @@ def main(page: ft.Page):
                     key="menu_button"
                 ),
                 ft.Text(APP_TITLE, size=20, weight="bold", key="app_title"),
+                ft.Container(expand=True),
+                ft.IconButton(
+                    icon=ft.Icons.LOGOUT,
+                    tooltip="Выйти",
+                    on_click=lambda e: logout(),
+                    key="logout_button"
+                ),
             ],
             alignment=ft.MainAxisAlignment.START,
         ),
@@ -68,6 +83,29 @@ def main(page: ft.Page):
         key="theme_switch"
     )
     
+    def show_login():
+        """Показать экран авторизации"""
+        # Инициализируем базу данных для авторизации
+        db = KindergartenDB(DATABASE_NAME)
+        db.connect()
+        db.create_tables()
+        
+        page.controls.clear()
+        login_view = LoginView(show_main_app, db, page)
+        page.add(login_view)
+        page.update()
+    
+    def show_main_app():
+        """Показать основное приложение"""
+        page.controls.clear()
+        init_main_app(page, header_container, theme_switch)
+        page.update()
+    
+    # Всегда показываем экран авторизации при запуске
+    show_login()
+
+def init_main_app(page, header_container, theme_switch):
+    """Инициализация основного приложения"""
     # Инициализация базы данных
     db = KindergartenDB(DATABASE_NAME)
     db.connect()
@@ -79,10 +117,11 @@ def main(page: ft.Page):
     # Создаем представления
     home_view = HomeView(db, lambda: refresh_current_view(), page)
     children_view = ChildrenView(db, lambda: refresh_current_view(), page)
-    groups_view = GroupsView(db, lambda: refresh_current_view())
+    groups_view = GroupsView(db, lambda: refresh_current_view(), page)
     teachers_view = TeachersView(db, lambda: refresh_current_view())
     parents_view = ParentsView(db, lambda: refresh_current_view(), page)
     attendance_view = AttendanceView(db, lambda: refresh_current_view(), page)
+    events_view = EventsView(db, lambda: refresh_current_view(), page)
     settings_view = SettingsView(page, theme_switch)
     
     # Создаем electronic_journal_view после добавления страницы
@@ -121,6 +160,7 @@ def main(page: ft.Page):
             "parents": parents_view,
             "attendance": attendance_view,
             "electronic_journal": electronic_journal_view,
+            "events": events_view,
             "settings": settings_view
         }
         
@@ -147,6 +187,8 @@ def main(page: ft.Page):
         elif view == electronic_journal_view:
             if hasattr(electronic_journal_view, 'build_journal'):
                 electronic_journal_view.build_journal()
+        elif view == events_view:
+            events_view.load_events()
         elif view == settings_view:
             settings_view.load_settings()
         
@@ -156,21 +198,9 @@ def main(page: ft.Page):
 
 
     page.drawer = AppNavigationDrawer(switch_view)
-
     
-    
-    page.add(
-        header_container,
-        ft.Divider(),
-        content_container,
-    )
-
-    # # Основной layout
-    # page.add(
-    #     ft.Column([
-    #         content_container,
-    #     ], expand=True)
-    # )
+    # Добавляем элементы на страницу
+    page.add(header_container, ft.Divider(), content_container)
     
     # Создаем electronic_journal_view после инициализации страницы
     electronic_journal_view = ElectronicJournalView(db, lambda: refresh_current_view(), page)

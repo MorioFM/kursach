@@ -9,6 +9,7 @@ from datetime import date # Import date for age calculation
 from components import ConfirmDialog, DataTable, SearchBar
 from dialogs import show_confirm_dialog
 from settings.config import GENDERS
+from pages_styles.styles import AppStyles
 
 
 class ChildrenView(ft.Container):
@@ -23,37 +24,19 @@ class ChildrenView(ft.Container):
         self.page = page
         
         # Поля формы
-        self.last_name_field = ft.TextField(
-            label="Фамилия",
-            width=300,
-            autofocus=True
-        )
-        self.last_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.last_name_field = AppStyles.text_field("Фамилия", required=True, autofocus=True)
+        self.last_name_error = AppStyles.error_text()
         
-        self.first_name_field = ft.TextField(
-            label="Имя",
-            width=300
-        )
-        self.first_name_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.first_name_field = AppStyles.text_field("Имя", required=True)
+        self.first_name_error = AppStyles.error_text()
         
-        self.middle_name_field = ft.TextField(
-            label="Отчество",
-            width=300
-        )
+        self.middle_name_field = AppStyles.text_field("Отчество")
         
-        self.birth_date_field = ft.TextField(
-            label="Дата рождения (ГГГГ-ММ-ДД)",
-            width=300,
-            hint_text="2020-01-15"
-        )
-        self.birth_date_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.birth_date_field = AppStyles.text_field("Дата рождения", required=True, hint_text="дд-мм-гггг", max_length=10, on_change=self.format_birth_date)
+        self.birth_date_error = AppStyles.error_text()
         
-        self.gender_dropdown = ft.Dropdown(
-            label="Пол",
-            width=300,
-            options=[ft.DropdownOption(k, v) for k, v in GENDERS.items()]
-        )
-        self.gender_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.gender_dropdown = AppStyles.dropdown_field("Пол", [ft.DropdownOption(k, v) for k, v in GENDERS.items()], required=True)
+        self.gender_error = AppStyles.error_text()
         
         # Получаем список групп для dropdown
         groups = self.db.get_all_groups()
@@ -68,25 +51,12 @@ class ChildrenView(ft.Container):
             ]
         )
         
-        self.enrollment_date_field = ft.TextField(
-            label="Дата зачисления (ГГГГ-ММ-ДД)",
-            width=300,
-            hint_text="2024-09-01",
-            value=datetime.now().strftime("%Y-%m-%d")
-        )
-        self.enrollment_date_error = ft.Text("", color=ft.Colors.ERROR, size=12, visible=False)
+        self.enrollment_date_field = AppStyles.text_field("Дата зачисления", required=True, hint_text="дд-мм-гггг", max_length=10, value=datetime.now().strftime("%d-%m-%Y"), on_change=self.format_enrollment_date)
+        self.enrollment_date_error = AppStyles.error_text()
         
         # Кнопки формы
-        self.save_button = ft.ElevatedButton(
-            "Сохранить",
-            icon=ft.Icons.SAVE,
-            on_click=self.save_child
-        )
-        self.cancel_button = ft.OutlinedButton(
-            "Отмена",
-            icon=ft.Icons.CANCEL,
-            on_click=self.cancel_edit
-        )
+        self.save_button = AppStyles.primary_button("Сохранить", icon=ft.Icons.SAVE, on_click=self.save_child)
+        self.cancel_button = AppStyles.secondary_button("Отмена", icon=ft.Icons.CANCEL, on_click=self.cancel_edit)
         
         # Форма
         self.form_container = ft.Container(
@@ -137,24 +107,18 @@ class ChildrenView(ft.Container):
         )
         
         # Кнопка добавления
-        add_button = ft.ElevatedButton(
-            "Добавить ребенка",
-            icon=ft.Icons.ADD,
-            on_click=self.show_add_form
-        )
+        add_button = AppStyles.primary_button("Добавить ребенка", icon=ft.Icons.ADD, on_click=self.show_add_form)
         
         # Загружаем данные
         self.load_children()
         
-        self.content = ft.Column([
-            ft.Row([
-                ft.Text("Дети", size=24, weight=ft.FontWeight.BOLD),
-                add_button
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        self.content = AppStyles.form_column([
+            AppStyles.page_header("Дети", "Добавить ребенка", self.show_add_form),
             self.form_container,
             self.search_bar,
             ft.Container(content=self.data_table, expand=True)
-        ], spacing=20, expand=True)
+        ], spacing=20)
+        self.expand = True
     
     def load_children(self, search_query: str = ""):
         """Загрузка списка детей"""
@@ -165,7 +129,15 @@ class ChildrenView(ft.Container):
         
         rows = []
         for i, child in enumerate(children, 1):
-            birth_date_obj = datetime.strptime(child['birth_date'], "%Y-%m-%d").date()
+            # Обработка разных форматов даты
+            birth_date_str = child['birth_date']
+            try:
+                if '-' in birth_date_str and len(birth_date_str.split('-')[0]) == 4:
+                    birth_date_obj = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
+                else:
+                    birth_date_obj = datetime.strptime(birth_date_str, "%d-%m-%Y").date()
+            except ValueError:
+                birth_date_obj = date.today()
             today = date.today()
             age = today.year - birth_date_obj.year - ((today.month, today.day) < (birth_date_obj.month, birth_date_obj.day))
             
@@ -435,6 +407,42 @@ class ChildrenView(ft.Container):
             self.page.update()
     
 
+    def format_birth_date(self, e):
+        """Форматирование даты рождения в формате дд-мм-гггг"""
+        value = e.control.value
+        digits = ''.join(filter(str.isdigit, value))
+        
+        if len(digits) > 8:
+            digits = digits[:8]
+        
+        if len(digits) <= 2:
+            formatted = digits
+        elif len(digits) <= 4:
+            formatted = f"{digits[:2]}-{digits[2:]}"
+        else:
+            formatted = f"{digits[:2]}-{digits[2:4]}-{digits[4:]}"
+        
+        e.control.value = formatted
+        e.control.update()
+    
+    def format_enrollment_date(self, e):
+        """Форматирование даты зачисления в формате дд-мм-гггг"""
+        value = e.control.value
+        digits = ''.join(filter(str.isdigit, value))
+        
+        if len(digits) > 8:
+            digits = digits[:8]
+        
+        if len(digits) <= 2:
+            formatted = digits
+        elif len(digits) <= 4:
+            formatted = f"{digits[:2]}-{digits[2:]}"
+        else:
+            formatted = f"{digits[:2]}-{digits[2:4]}-{digits[4:]}"
+        
+        e.control.value = formatted
+        e.control.update()
+    
     def refresh(self):
         """Обновить данные"""
         # Обновляем список групп в dropdown

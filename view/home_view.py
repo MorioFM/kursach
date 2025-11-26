@@ -98,23 +98,27 @@ class HomeView(ft.Container):
             today = date.today().strftime("%Y-%m-%d")
             attendance_today = 0
             for group in self.db.get_all_groups():
-                if group['group_id']:
+                if group.get('group_id'):
                     attendance_data = self.db.get_attendance_by_group_and_date(group['group_id'], today)
-                    attendance_today += len([child for child in attendance_data if child['status'] == 'Присутствует'])
+                    attendance_today += len([child for child in attendance_data if child.get('status') == 'Присутствует'])
             
             # Создаем карточки статистики
             cards = [
                 InfoCard("Всего детей", str(total_children), ft.Icons.CHILD_CARE, "#2196F3"),
+                InfoCard("Всего групп", str(total_groups), ft.Icons.GROUPS, "#4CAF50"),
+                InfoCard("Всего воспитателей", str(total_teachers), ft.Icons.PERSON, "#FF9800"),
                 InfoCard("Присутствуют сегодня", str(attendance_today), ft.Icons.ASSIGNMENT_TURNED_IN, "#00BCD4")
             ]
             
             self.stats_row.controls = cards
             
             if self.page:
-                self.update()
+                self.page.update()
                 
         except Exception as ex:
             print(f"Ошибка при загрузке статистики: {ex}")
+            import traceback
+            traceback.print_exc()
     
     def navigate_to(self, view_name):
         """Навигация к другому представлению"""
