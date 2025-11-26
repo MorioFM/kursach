@@ -18,7 +18,12 @@ class EventsView(ft.Container):
         self.on_refresh = on_refresh
         self.page = page
         self.selected_event = None
-        self.events_storage = []
+        # Используем client_storage для сохранения мероприятий
+        if page and hasattr(page, 'client_storage'):
+            stored_events = page.client_storage.get("events_storage")
+            self.events_storage = stored_events if stored_events else []
+        else:
+            self.events_storage = []
         
         # Поля формы
         self.event_name_field = AppStyles.text_field("Название мероприятия", required=True, autofocus=True)
@@ -33,6 +38,13 @@ class EventsView(ft.Container):
             multiline=True,
             min_lines=3,
             max_lines=5
+        )
+        
+        # Выбор ответственного воспитателя
+        self.teacher_dropdown = ft.Dropdown(
+            label="Ответственный воспитатель",
+            width=300,
+            options=[]
         )
         
         # Список групп для назначения
@@ -62,6 +74,7 @@ class EventsView(ft.Container):
                 self.event_date_field,
                 self.event_date_error,
                 self.description_field,
+                self.teacher_dropdown,
                 self.groups_container,
                 AppStyles.button_row([self.save_button, self.cancel_button])
             ], spacing=5)
@@ -69,7 +82,7 @@ class EventsView(ft.Container):
         
         # Таблица
         self.data_table = DataTable(
-            columns=["№", "Название", "Дата", "Описание", "Группы"],
+            columns=["№", "Название", "Дата", "Ответственный", "Группы"],
             rows=[],
             on_edit=self.edit_event,
             on_delete=self.delete_event,
@@ -120,7 +133,7 @@ class EventsView(ft.Container):
                     str(i),
                     event.get('name', ''),
                     event.get('date', ''),
-                    event.get('description', '')[:50] + "..." if len(event.get('description', '')) > 50 else event.get('description', ''),
+                    event.get('teacher_name', 'Не назначен'),
                     str(len(event.get('groups', [])))
                 ]
             })
@@ -133,23 +146,58 @@ class EventsView(ft.Container):
         self.clear_form()
         self.form_container.content.controls[0].value = "Добавить мероприятие"
         self.form_container.visible = True
+        self._load_teachers_for_form()
         self._load_groups_for_form()
         self.update()
     
     def edit_event(self, event_id: str):
         """Редактировать мероприятие"""
+        # Находим мероприятие для редактирования
+        event = next((e for e in self.events_storage if e['event_id'] == int(event_id)), None)
+        if not event:
+            return
+            
+        self.selected_event = event
+        
+        # Заполняем поля формы данными мероприятия
+        self.event_name_field.value = event.get('name', '')
+        self.event_date_field.value = event.get('date', '')
+        self.description_field.value = event.get('description', '')
+        
         self.form_container.content.controls[0].value = "Редактировать мероприятие"
         self.form_container.visible = True
+        self._load_teachers_for_form()
+        
+        # Устанавливаем выбранного воспитателя
+        teacher_id = event.get('teacher_id')
+        if teacher_id:
+            self.teacher_dropdown.value = str(teacher_id)
+        else:
+            self.teacher_dropdown.value = "0"
+            
         self._load_groups_for_form()
+        
+        # Отмечаем выбранные группы
+        event_groups = event.get('groups', [])
+        for checkbox in self.groups_list_view.controls:
+            checkbox.value = checkbox.data in event_groups
+            
         self.update()
     
     def delete_event(self, event_id: str):
         """Удалить мероприятие"""
         def on_yes(e):
             self.events_storage = [event for event in self.events_storage if event['event_id'] != int(event_id)]
+            # Сохраняем в client_storage
+            if self.page and hasattr(self.page, 'client_storage'):
+                self.page.client_storage.set("events_storage", self.events_storage)
             self.load_events()
             if self.on_refresh:
                 self.on_refresh()
+            # Закрываем диалог
+            if self.page and self.page.overlay:
+                self.page.overlay.clear()
+                self.page.update()
 
         show_confirm_dialog(
             self.page,
@@ -227,6 +275,17 @@ class EventsView(ft.Container):
             self.page.overlay.clear()
             self.page.update()
     
+    def _load_teachers_for_form(self):
+        """Загружает список воспитателей в форму"""
+        teachers = self.db.get_all_teachers()
+        self.teacher_dropdown.options = [
+            ft.DropdownOption("0", "Не назначен")
+        ] + [
+            ft.DropdownOption(str(t['teacher_id']), f"{t['last_name']} {t['first_name']}")
+            for t in teachers
+        ]
+        self.teacher_dropdown.value = "0"
+    
     def _load_groups_for_form(self):
         """Загружает список групп в форму для выбора"""
         self.groups_list_view.controls.clear()
@@ -277,21 +336,44 @@ class EventsView(ft.Container):
                 cb.data for cb in self.groups_list_view.controls if cb.value
             ]
             
-            new_event = {
-                'event_id': len(self.events_storage) + 1,
-                'name': self.event_name_field.value,
-                'date': self.event_date_field.value,
-                'description': self.description_field.value or '',
-                'groups': selected_groups
-            }
+            teacher_id = int(self.teacher_dropdown.value) if self.teacher_dropdown.value and self.teacher_dropdown.value != "0" else None
+            teacher_name = "Не назначен"
+            if teacher_id:
+                teacher = self.db.get_teacher_by_id(teacher_id)
+                if teacher:
+                    teacher_name = f"{teacher['last_name']} {teacher['first_name']}"
             
             if self.selected_event:
+                # Обновление существующего мероприятия
+                new_event = {
+                    'event_id': self.selected_event['event_id'],
+                    'name': self.event_name_field.value,
+                    'date': self.event_date_field.value,
+                    'description': self.description_field.value or '',
+                    'teacher_id': teacher_id,
+                    'teacher_name': teacher_name,
+                    'groups': selected_groups
+                }
                 for i, event in enumerate(self.events_storage):
                     if event['event_id'] == self.selected_event['event_id']:
                         self.events_storage[i] = new_event
                         break
             else:
+                # Создание нового мероприятия
+                new_event = {
+                    'event_id': len(self.events_storage) + 1,
+                    'name': self.event_name_field.value,
+                    'date': self.event_date_field.value,
+                    'description': self.description_field.value or '',
+                    'teacher_id': teacher_id,
+                    'teacher_name': teacher_name,
+                    'groups': selected_groups
+                }
                 self.events_storage.append(new_event)
+            
+            # Сохраняем в client_storage
+            if self.page and hasattr(self.page, 'client_storage'):
+                self.page.client_storage.set("events_storage", self.events_storage)
             
             self.form_container.visible = False
             self.load_events()
@@ -313,6 +395,7 @@ class EventsView(ft.Container):
         self.event_name_field.value = ""
         self.event_date_field.value = ""
         self.description_field.value = ""
+        self.teacher_dropdown.value = "0"
         self.groups_list_view.controls.clear()
         self.clear_field_errors()
     

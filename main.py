@@ -185,6 +185,7 @@ def init_main_app(page, header_container, theme_switch):
         elif view == attendance_view:
             attendance_view.load_attendance()
         elif view == electronic_journal_view:
+            electronic_journal_view.page = page
             if hasattr(electronic_journal_view, 'build_journal'):
                 electronic_journal_view.build_journal()
         elif view == events_view:

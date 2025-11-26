@@ -111,6 +111,14 @@ class ElectronicJournalView(ft.Container):
         row_bg = ft.Colors.GREY_900 if is_dark else ft.Colors.GREY_50
         border_color = ft.Colors.GREY_600 if is_dark else ft.Colors.OUTLINE
         
+        # Адаптивные цвета для статусов
+        present_bg = ft.Colors.GREEN_100 if not is_dark else ft.Colors.GREEN_900
+        present_color = ft.Colors.GREEN_800 if not is_dark else ft.Colors.GREEN_200
+        absent_bg = ft.Colors.RED_100 if not is_dark else ft.Colors.RED_900
+        absent_color = ft.Colors.RED_800 if not is_dark else ft.Colors.RED_200
+        sick_bg = ft.Colors.ORANGE_100 if not is_dark else ft.Colors.ORANGE_900
+        sick_color = ft.Colors.ORANGE_800 if not is_dark else ft.Colors.ORANGE_200
+        
         try:
             # Получаем детей группы
             children = self.db.get_children_by_group(self.selected_group)
@@ -165,17 +173,17 @@ class ElectronicJournalView(ft.Container):
                     
                     # Определяем цвет и символ
                     if status == 'Присутствует':
-                        bgcolor = ft.Colors.GREEN_100
+                        bgcolor = present_bg
                         symbol = "+"
-                        color = ft.Colors.GREEN_800
+                        color = present_color
                     elif status == 'Отсутствует':
-                        bgcolor = ft.Colors.RED_100
+                        bgcolor = absent_bg
                         symbol = "-"
-                        color = ft.Colors.RED_800
+                        color = absent_color
                     else:  # Болеет
-                        bgcolor = ft.Colors.ORANGE_100
+                        bgcolor = sick_bg
                         symbol = "Б"
-                        color = ft.Colors.ORANGE_800
+                        color = sick_color
                     
                     cell = ft.Container(
                         content=ft.Text(symbol, size=10, weight=ft.FontWeight.BOLD, 
@@ -195,7 +203,7 @@ class ElectronicJournalView(ft.Container):
             legend = ft.Row([
                 ft.Container(
                     content=ft.Row([
-                        ft.Container(width=20, height=20, bgcolor=ft.Colors.GREEN_100, 
+                        ft.Container(width=20, height=20, bgcolor=present_bg, 
                                    border=ft.border.all(1, border_color)),
                         ft.Text("+ Присутствует", size=12)
                     ], spacing=5),
@@ -203,7 +211,7 @@ class ElectronicJournalView(ft.Container):
                 ),
                 ft.Container(
                     content=ft.Row([
-                        ft.Container(width=20, height=20, bgcolor=ft.Colors.RED_100,
+                        ft.Container(width=20, height=20, bgcolor=absent_bg,
                                    border=ft.border.all(1, border_color)),
                         ft.Text("- Отсутствует", size=12)
                     ], spacing=5),
@@ -211,7 +219,7 @@ class ElectronicJournalView(ft.Container):
                 ),
                 ft.Container(
                     content=ft.Row([
-                        ft.Container(width=20, height=20, bgcolor=ft.Colors.ORANGE_100,
+                        ft.Container(width=20, height=20, bgcolor=sick_bg,
                                    border=ft.border.all(1, border_color)),
                         ft.Text("Б Болеет", size=12)
                     ], spacing=5),
