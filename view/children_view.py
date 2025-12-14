@@ -32,7 +32,7 @@ class ChildrenView(ft.Container):
         
         self.middle_name_field = AppStyles.text_field("Отчество")
         
-        self.birth_date_field = AppStyles.text_field("Дата рождения", required=True, hint_text="дд-мм-гггг", max_length=10, on_change=self.format_birth_date)
+        self.birth_date_field = AppStyles.text_field("Дата рождения", required=True, hint_text="дд-мм-гггг", max_length=10, on_change=self.format_date)
         self.birth_date_error = AppStyles.error_text()
         
         self.gender_dropdown = AppStyles.dropdown_field("Пол", [ft.DropdownOption(k, v) for k, v in GENDERS.items()], required=True)
@@ -51,7 +51,7 @@ class ChildrenView(ft.Container):
             ]
         )
         
-        self.enrollment_date_field = AppStyles.text_field("Дата зачисления", required=True, hint_text="дд-мм-гггг", max_length=10, value=datetime.now().strftime("%d-%m-%Y"), on_change=self.format_enrollment_date)
+        self.enrollment_date_field = AppStyles.text_field("Дата зачисления", required=True, hint_text="дд-мм-гггг", max_length=10, value=datetime.now().strftime("%d-%m-%Y"), on_change=self.format_date)
         self.enrollment_date_error = AppStyles.error_text()
         
         # Кнопки формы
@@ -109,8 +109,6 @@ class ChildrenView(ft.Container):
         """Загрузка списка детей"""
         children = self.db.search_children(search_query) if search_query else self.db.get_all_children()
         self.children_list.controls = [self._create_child_item(child) for child in children]
-        if self.page:
-            self.page.update()
     
     def _create_child_item(self, child):
         """Создать элемент списка для ребенка"""
@@ -132,6 +130,7 @@ class ChildrenView(ft.Container):
             trailing=ft.PopupMenuButton(
                 tooltip="",
                 items=[
+                    ft.PopupMenuItem(text="Медкарта", icon=ft.Icons.MEDICAL_INFORMATION, on_click=lambda _, cid=child['child_id']: self.show_medical_card(str(cid))),
                     ft.PopupMenuItem(text="Родители", icon=ft.Icons.FAMILY_RESTROOM, on_click=lambda _, cid=child['child_id']: self.manage_parents(str(cid))),
                     ft.PopupMenuItem(text="Редактировать", icon=ft.Icons.EDIT, on_click=lambda _, cid=child['child_id']: self.edit_child(str(cid))),
                     ft.PopupMenuItem(text="Удалить", icon=ft.Icons.DELETE, on_click=lambda _, cid=child['child_id']: self.delete_child(str(cid)))
@@ -244,19 +243,9 @@ class ChildrenView(ft.Container):
             }
             
             if self.selected_child:
-                # Обновление
                 self.db.update_child(self.selected_child['child_id'], **child_data)
             else:
-                # Добавление
-                self.db.add_child(
-                    last_name=child_data['last_name'],
-                    first_name=child_data['first_name'],
-                    middle_name=child_data['middle_name'],
-                    birth_date=child_data['birth_date'],
-                    gender=child_data['gender'],
-                    group_id=child_data['group_id'],
-                    enrollment_date=child_data['enrollment_date']
-                )
+                self.db.add_child(**child_data)
             
             self.form_container.visible = False
             self.load_children(self.search_query)
@@ -281,7 +270,7 @@ class ChildrenView(ft.Container):
         self.birth_date_field.value = ""
         self.gender_dropdown.value = None
         self.group_dropdown.value = "0"
-        self.enrollment_date_field.value = datetime.now().strftime("%Y-%m-%d")
+        self.enrollment_date_field.value = datetime.now().strftime("%d-%m-%Y")
         self.clear_field_errors()
     
     def on_search(self, query: str):
@@ -296,23 +285,17 @@ class ChildrenView(ft.Container):
             if not child:
                 return
             
-            # Получаем список всех родителей и текущих связей
             all_parents = self.db.get_all_parents()
             current_parents = self.db.get_parents_by_child(int(child_id))
             current_parent_ids = [p['parent_id'] for p in current_parents]
             
-            # Создаем диалог
             parent_checkboxes = []
             relationship_fields = {}
             parent_rows = []
             
             for parent in all_parents:
                 is_selected = parent['parent_id'] in current_parent_ids
-                current_relationship = ""
-                if is_selected:
-                    current_rel = next((p for p in current_parents if p['parent_id'] == parent['parent_id']), None)
-                    if current_rel:
-                        current_relationship = current_rel['relationship']
+                current_relationship = next((p['relationship'] for p in current_parents if p['parent_id'] == parent['parent_id']), "")
                 
                 checkbox = ft.Checkbox(
                     label=f"{parent.get('last_name', '')} {parent.get('first_name', '')}",
@@ -333,21 +316,17 @@ class ChildrenView(ft.Container):
             
             def save_relations(e):
                 try:
-                    # Удаляем все старые связи
                     for parent_id in current_parent_ids:
                         self.db.remove_parent_child_relation(parent_id, int(child_id))
                     
-                    # Добавляем новые связи
                     for checkbox in parent_checkboxes:
                         if checkbox.value:
-                            parent_id = checkbox.data
-                            relationship = relationship_fields[parent_id].value or "Родитель"
-                            self.db.add_parent_child_relation(parent_id, int(child_id), relationship)
+                            relationship = relationship_fields[checkbox.data].value or "Родитель"
+                            self.db.add_parent_child_relation(checkbox.data, int(child_id), relationship)
                     
                     self.page.close(dialog)
-                    
                 except Exception as ex:
-                    self.show_error(f"Ошибка при сохранении: {str(ex)}")
+                    self.show_error(f"Ошибка: {str(ex)}")
             
             def close_dialog(e):
                 self.page.close(dialog)
@@ -372,6 +351,42 @@ class ChildrenView(ft.Container):
         except Exception as ex:
             self.show_error(f"Ошибка: {str(ex)}")
     
+    def show_medical_card(self, child_id: str):
+        """Показать медицинскую карту ребёнка"""
+        from view.medical_card_view import MedicalCardView
+        
+        child = self.db.get_child_by_id(int(child_id))
+        if not child:
+            return
+        
+        child_name = f"{child['last_name']} {child['first_name']}"
+        
+        def close_medical_card():
+            self.page.close(dialog)
+        
+        medical_card = MedicalCardView(
+            db=self.db,
+            child_id=int(child_id),
+            child_name=child_name,
+            on_close=close_medical_card,
+            page=self.page
+        )
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Медицинская карта"),
+            content=ft.Container(
+                content=medical_card,
+                width=800,
+                height=600
+            ),
+            actions=[]
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+    
     def show_error(self, message: str):
         """Показать ошибку"""
         if self.page:
@@ -383,26 +398,8 @@ class ChildrenView(ft.Container):
             self.page.update()
     
 
-    def format_birth_date(self, e):
-        """Форматирование даты рождения в формате дд-мм-гггг"""
-        value = e.control.value
-        digits = ''.join(filter(str.isdigit, value))
-        
-        if len(digits) > 8:
-            digits = digits[:8]
-        
-        if len(digits) <= 2:
-            formatted = digits
-        elif len(digits) <= 4:
-            formatted = f"{digits[:2]}-{digits[2:]}"
-        else:
-            formatted = f"{digits[:2]}-{digits[2:4]}-{digits[4:]}"
-        
-        e.control.value = formatted
-        e.control.update()
-    
-    def format_enrollment_date(self, e):
-        """Форматирование даты зачисления в формате дд-мм-гггг"""
+    def format_date(self, e):
+        """Форматирование даты в формате дд-мм-гггг"""
         value = e.control.value
         digits = ''.join(filter(str.isdigit, value))
         

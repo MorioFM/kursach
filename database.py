@@ -105,6 +105,26 @@ class AttendanceRecord(BaseModel):
         )
 
 
+class MedicalRecord(BaseModel):
+    """Модель медицинской карты ребёнка"""
+    record_id = AutoField(primary_key=True)
+    child = ForeignKeyField(Child, backref='medical_records', column_name='child_id')
+    blood_type = CharField(null=True)  # Группа крови
+    allergies = TextField(null=True)  # Аллергии
+    chronic_diseases = TextField(null=True)  # Хронические заболевания
+    vaccinations = TextField(null=True)  # Прививки
+    height = FloatField(null=True)  # Рост (см)
+    weight = FloatField(null=True)  # Вес (кг)
+    doctor_notes = TextField(null=True)  # Замечания врача
+    emergency_contact = CharField(null=True)  # Контакт для экстренных случаев
+    last_checkup = DateField(null=True)  # Последний осмотр
+    created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
+    
+    class Meta:
+        table_name = 'medical_records'
+
+
 class User(BaseModel):
     """Модель пользователя"""
     user_id = AutoField(primary_key=True)
@@ -134,11 +154,13 @@ class KindergartenDB:
         from settings.parents_settings import ParentsSettings
         from settings.groups_settings import GroupsSettings
         from settings.attendance_settings import AttendanceSettings
+        from settings.medical_card_settings import MedicalCardSettings
         self._children_settings = ChildrenSettings()
         self._teachers_settings = TeachersSettings()
         self._parents_settings = ParentsSettings()
         self._groups_settings = GroupsSettings()
         self._attendance_settings = AttendanceSettings()
+        self._medical_card_settings = MedicalCardSettings()
     
     def connect(self):
         """Установить соединение с базой данных"""
@@ -154,7 +176,7 @@ class KindergartenDB:
     
     def create_tables(self):
         """Создать таблицы в базе данных"""
-        db.create_tables([Teacher, Group, Parent, Child, ParentChild, AttendanceRecord, User])
+        db.create_tables([Teacher, Group, Parent, Child, ParentChild, AttendanceRecord, MedicalRecord, User])
         # Создаем администратора по умолчанию
         try:
             User.get(User.username == 'admin')
@@ -191,6 +213,11 @@ class KindergartenDB:
         attendance_methods = ['add_attendance_record', 'update_attendance_record']
         if name in attendance_methods:
             return getattr(self._attendance_settings, name)
+        
+        # Методы для работы с медицинскими картами
+        medical_methods = ['get_medical_record', 'create_or_update_medical_record']
+        if name in medical_methods:
+            return getattr(self._medical_card_settings, name)
         
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
     
@@ -234,6 +261,8 @@ class KindergartenDB:
             return {'user_id': user.user_id, 'username': user.username, 'role': user.role}
         except:
             return None
+    
+
     
 
     
