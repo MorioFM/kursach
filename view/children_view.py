@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Callable
 from settings.models import format_date
 from datetime import date # Import date for age calculation
-from components import ConfirmDialog, DataTable, SearchBar
+from components import ConfirmDialog, SearchBar
 from dialogs import show_confirm_dialog
 from settings.config import GENDERS
 from pages_styles.styles import AppStyles
@@ -88,23 +88,8 @@ class ChildrenView(ft.Container):
         # Поиск
         self.search_bar = SearchBar(on_search=self.on_search)
         
-        # Таблица
-        self.data_table = DataTable(
-            columns=[
-                "№", "Фамилия", "Имя", "Отчество", "Дата рождения", 
-                "Возраст", "Пол", "Группа", "Дата зачисления"
-            ],
-            rows=[],
-            on_edit=self.edit_child,
-            on_delete=self.delete_child,
-            custom_actions=[
-                {
-                    "icon": ft.Icons.FAMILY_RESTROOM,
-                    "tooltip": "Привязать родителей",
-                    "on_click": self.manage_parents
-                }
-            ]
-        )
+        # Список детей
+        self.children_list = ft.ListView(expand=True, spacing=10, padding=20)
         
         # Кнопка добавления
         add_button = AppStyles.primary_button("Добавить ребенка", icon=ft.Icons.ADD, on_click=self.show_add_form)
@@ -116,48 +101,43 @@ class ChildrenView(ft.Container):
             AppStyles.page_header("Дети", "Добавить ребенка", self.show_add_form),
             self.form_container,
             self.search_bar,
-            ft.Container(content=self.data_table, expand=True)
+            ft.Container(content=self.children_list, expand=True)
         ], spacing=20)
         self.expand = True
     
     def load_children(self, search_query: str = ""):
         """Загрузка списка детей"""
-        if search_query:
-            children = self.db.search_children(search_query)
-        else:
-            children = self.db.get_all_children()
+        children = self.db.search_children(search_query) if search_query else self.db.get_all_children()
+        self.children_list.controls = [self._create_child_item(child) for child in children]
+        if self.page:
+            self.page.update()
+    
+    def _create_child_item(self, child):
+        """Создать элемент списка для ребенка"""
+        birth_date_str = child['birth_date']
+        try:
+            if '-' in birth_date_str and len(birth_date_str.split('-')[0]) == 4:
+                birth_date_obj = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
+            else:
+                birth_date_obj = datetime.strptime(birth_date_str, "%d-%m-%Y").date()
+        except ValueError:
+            birth_date_obj = date.today()
         
-        rows = []
-        for i, child in enumerate(children, 1):
-            # Обработка разных форматов даты
-            birth_date_str = child['birth_date']
-            try:
-                if '-' in birth_date_str and len(birth_date_str.split('-')[0]) == 4:
-                    birth_date_obj = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
-                else:
-                    birth_date_obj = datetime.strptime(birth_date_str, "%d-%m-%Y").date()
-            except ValueError:
-                birth_date_obj = date.today()
-            today = date.today()
-            age = today.year - birth_date_obj.year - ((today.month, today.day) < (birth_date_obj.month, birth_date_obj.day))
-            
-            # Формируем данные в новом формате: {"id": ..., "values": [...]}
-            rows.append({
-                "id": child['child_id'],
-                "values": [
-                    str(i), # Порядковый номер
-                    child['last_name'],
-                    child['first_name'],
-                    child['middle_name'] or '',
-                    format_date(child['birth_date']),
-                    str(age),
-                    GENDERS.get(child['gender'], child['gender']),
-                    child.get('group_name') if child.get('group_id') else 'Без группы',
-                    format_date(child['enrollment_date'])
+        today = date.today()
+        age = today.year - birth_date_obj.year - ((today.month, today.day) < (birth_date_obj.month, birth_date_obj.day))
+        
+        return ft.ListTile(
+            title=ft.Text(f"{child['last_name']} {child['first_name']} {child['middle_name'] or ''}", weight=ft.FontWeight.BOLD),
+            subtitle=ft.Text(f"ДР: {format_date(child['birth_date'])} | {age} лет | {GENDERS.get(child['gender'], child['gender'])} | {child.get('group_name') if child.get('group_id') else 'Без группы'}"),
+            trailing=ft.PopupMenuButton(
+                tooltip="",
+                items=[
+                    ft.PopupMenuItem(text="Родители", icon=ft.Icons.FAMILY_RESTROOM, on_click=lambda _, cid=child['child_id']: self.manage_parents(str(cid))),
+                    ft.PopupMenuItem(text="Редактировать", icon=ft.Icons.EDIT, on_click=lambda _, cid=child['child_id']: self.edit_child(str(cid))),
+                    ft.PopupMenuItem(text="Удалить", icon=ft.Icons.DELETE, on_click=lambda _, cid=child['child_id']: self.delete_child(str(cid)))
                 ]
-            })
-        
-        self.data_table.set_rows(rows)
+            )
+        )
     
     def show_add_form(self, e):
         """Показать форму добавления"""
@@ -311,90 +291,86 @@ class ChildrenView(ft.Container):
     
     def manage_parents(self, child_id: str):
         """Управление родителями ребенка"""
-        child = self.db.get_child_by_id(int(child_id))
-        if not child:
-            return
-        
-        # Получаем список всех родителей и текущих связей
-        all_parents = self.db.get_all_parents()
-        current_parents = self.db.get_parents_by_child(int(child_id))
-        current_parent_ids = [p['parent_id'] for p in current_parents]
-        
-        # Создаем диалог
-        parent_checkboxes = []
-        relationship_fields = {}
-        
-        for parent in all_parents:
-            is_selected = parent['parent_id'] in current_parent_ids
-            current_relationship = ""
-            if is_selected:
-                current_rel = next((p for p in current_parents if p['parent_id'] == parent['parent_id']), None)
-                if current_rel:
-                    current_relationship = current_rel['relationship']
+        try:
+            child = self.db.get_child_by_id(int(child_id))
+            if not child:
+                return
             
-            checkbox = ft.Checkbox(
-                label=parent['full_name'],
-                value=is_selected,
-                data=parent['parent_id']
+            # Получаем список всех родителей и текущих связей
+            all_parents = self.db.get_all_parents()
+            current_parents = self.db.get_parents_by_child(int(child_id))
+            current_parent_ids = [p['parent_id'] for p in current_parents]
+            
+            # Создаем диалог
+            parent_checkboxes = []
+            relationship_fields = {}
+            parent_rows = []
+            
+            for parent in all_parents:
+                is_selected = parent['parent_id'] in current_parent_ids
+                current_relationship = ""
+                if is_selected:
+                    current_rel = next((p for p in current_parents if p['parent_id'] == parent['parent_id']), None)
+                    if current_rel:
+                        current_relationship = current_rel['relationship']
+                
+                checkbox = ft.Checkbox(
+                    label=f"{parent.get('last_name', '')} {parent.get('first_name', '')}",
+                    value=is_selected,
+                    data=parent['parent_id']
+                )
+                
+                relationship_field = ft.TextField(
+                    label="Степень родства",
+                    value=current_relationship,
+                    width=150,
+                    hint_text="Мама, Папа..."
+                )
+                
+                parent_checkboxes.append(checkbox)
+                relationship_fields[parent['parent_id']] = relationship_field
+                parent_rows.append(ft.Row([checkbox, relationship_field], spacing=10))
+            
+            def save_relations(e):
+                try:
+                    # Удаляем все старые связи
+                    for parent_id in current_parent_ids:
+                        self.db.remove_parent_child_relation(parent_id, int(child_id))
+                    
+                    # Добавляем новые связи
+                    for checkbox in parent_checkboxes:
+                        if checkbox.value:
+                            parent_id = checkbox.data
+                            relationship = relationship_fields[parent_id].value or "Родитель"
+                            self.db.add_parent_child_relation(parent_id, int(child_id), relationship)
+                    
+                    self.page.close(dialog)
+                    
+                except Exception as ex:
+                    self.show_error(f"Ошибка при сохранении: {str(ex)}")
+            
+            def close_dialog(e):
+                self.page.close(dialog)
+            
+            dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text(f"Родители: {child['last_name']} {child['first_name']}"),
+                content=ft.Container(
+                    content=ft.Column(parent_rows, scroll=ft.ScrollMode.AUTO),
+                    width=400,
+                    height=300
+                ),
+                actions=[
+                    ft.TextButton("Отмена", on_click=close_dialog),
+                    ft.ElevatedButton("Сохранить", on_click=save_relations)
+                ]
             )
             
-            relationship_field = ft.TextField(
-                label="Степень родства",
-                value=current_relationship,
-                width=150,
-                hint_text="Мама, Папа..."
-            )
-            
-            parent_checkboxes.append(checkbox)
-            relationship_fields[parent['parent_id']] = relationship_field
-        
-        def save_relations(e):
-            try:
-                # Удаляем все старые связи
-                for parent_id in current_parent_ids:
-                    self.db.remove_parent_child_relation(parent_id, int(child_id))
-                
-                # Добавляем новые связи
-                for checkbox in parent_checkboxes:
-                    if checkbox.value:
-                        parent_id = checkbox.data
-                        relationship = relationship_fields[parent_id].value or "Родитель"
-                        self.db.add_parent_child_relation(parent_id, int(child_id), relationship)
-                
-                dialog.open = False
-                self.page.update()
-                
-            except Exception as ex:
-                self.show_error(f"Ошибка при сохранении: {str(ex)}")
-        
-        # Создаем список родителей с чекбоксами
-        parent_rows = []
-        for i, checkbox in enumerate(parent_checkboxes):
-            parent_id = checkbox.data
-            parent_rows.append(
-                ft.Row([
-                    checkbox,
-                    relationship_fields[parent_id]
-                ], spacing=10)
-            )
-        
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(f"Родители ребенка: {child['last_name']} {child['first_name']}"),
-            content=ft.Container(
-                content=ft.Column(parent_rows, scroll=ft.ScrollMode.AUTO),
-                width=400,
-                height=300
-            ),
-            actions=[
-                ft.TextButton("Отмена", on_click=lambda e: setattr(dialog, 'open', False) or self.page.update()),
-                ft.ElevatedButton("Сохранить", on_click=save_relations)
-            ]
-        )
-        
-        self.page.overlay.append(dialog)
-        dialog.open = True
-        self.page.update()
+            self.page.overlay.append(dialog)
+            dialog.open = True
+            self.page.update()
+        except Exception as ex:
+            self.show_error(f"Ошибка: {str(ex)}")
     
     def show_error(self, message: str):
         """Показать ошибку"""

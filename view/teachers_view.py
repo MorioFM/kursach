@@ -3,7 +3,7 @@
 """
 import flet as ft
 from typing import Callable
-from components import DataTable, SearchBar
+from components import SearchBar
 from dialogs import show_confirm_dialog
 from settings.config import PRIMARY_COLOR
 from pages_styles.styles import AppStyles
@@ -87,13 +87,8 @@ class TeachersView(ft.Container):
         # Поиск
         self.search_bar = SearchBar(on_search=self.on_search, placeholder="Поиск воспитателей...")
         
-        # Таблица
-        self.data_table = DataTable(
-            columns=["№", "ФИО", "Телефон", "Email", "Дата рождения", "Адрес"],
-            rows=[],
-            on_edit=self.edit_teacher,
-            on_delete=self.delete_teacher
-        )
+        # Список воспитателей
+        self.teachers_list = ft.ListView(expand=True, spacing=10, padding=20)
         
         # Кнопка добавления
         add_button = AppStyles.primary_button("Добавить воспитателя", icon=ft.Icons.ADD, on_click=self.show_add_form)
@@ -105,7 +100,7 @@ class TeachersView(ft.Container):
             AppStyles.page_header("Воспитатели", "Добавить воспитателя", self.show_add_form),
             self.form_container,
             self.search_bar,
-            self.data_table
+            ft.Container(content=self.teachers_list, expand=True)
         ], spacing=20)
         self.expand = True
     
@@ -116,29 +111,27 @@ class TeachersView(ft.Container):
     
     def load_teachers(self, search_query: str = ""):
         """Загрузка списка воспитателей"""
-        if search_query:
-            teachers = self.db.search_teachers(search_query)
-        else:
-            teachers = self.db.get_all_teachers()
-        
-        rows = []
-        for i, teacher in enumerate(teachers, 1):
-            # Формируем данные в новом формате: {"id": ..., "values": [...]}
-            rows.append({
-                "id": teacher['teacher_id'],
-                "values": [
-                    str(i), # Порядковый номер
-                    teacher.get('full_name', ''),
-                    teacher.get('phone', ''),
-                    teacher.get('email', ''),
-                    teacher.get('birth_date', ''),
-                    teacher.get('address', '')
-                ]
-            })
-        
-        self.data_table.set_rows(rows)
+        teachers = self.db.search_teachers(search_query) if search_query else self.db.get_all_teachers()
+        self.teachers_list.controls = [self._create_teacher_item(teacher) for teacher in teachers]
         if self.page:
-            self.update()
+            self.page.update()
+    
+    def _create_teacher_item(self, teacher):
+        """Создать элемент списка для воспитателя"""
+        phone_text = teacher.get('phone') if teacher.get('phone') else "Не указан"
+        email_text = teacher.get('email') if teacher.get('email') else "Не указан"
+        
+        return ft.ListTile(
+            title=ft.Text(teacher.get('full_name', ''), weight=ft.FontWeight.BOLD),
+            subtitle=ft.Text(f"Тел: {phone_text} | Email: {email_text}"),
+            trailing=ft.PopupMenuButton(
+                tooltip="",
+                items=[
+                    ft.PopupMenuItem(text="Редактировать", icon=ft.Icons.EDIT, on_click=lambda _, tid=teacher['teacher_id']: self.edit_teacher(str(tid))),
+                    ft.PopupMenuItem(text="Удалить", icon=ft.Icons.DELETE, on_click=lambda _, tid=teacher['teacher_id']: self.delete_teacher(str(tid)))
+                ]
+            )
+        )
     
     def show_add_form(self, e):
         """Показать форму добавления"""

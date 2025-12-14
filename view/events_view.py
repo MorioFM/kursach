@@ -4,7 +4,7 @@
 import flet as ft
 from datetime import datetime, date
 from typing import Callable
-from components import DataTable
+
 from dialogs import show_confirm_dialog
 from pages_styles.styles import AppStyles
 
@@ -80,30 +80,20 @@ class EventsView(ft.Container):
             ], spacing=5)
         )
         
-        # Таблица
-        self.data_table = DataTable(
-            columns=["№", "Название", "Дата", "Ответственный", "Группы"],
-            rows=[],
-            on_edit=self.edit_event,
-            on_delete=self.delete_event,
-            custom_actions=[
-                {
-                    "icon": ft.Icons.GROUPS,
-                    "tooltip": "Просмотр участников",
-                    "on_click": self.view_participants
-                }
-            ]
-        )
+        # Список мероприятий
+        self.events_list = ft.ListView(expand=True, spacing=10, padding=20)
         
         self.content = AppStyles.form_column([
             AppStyles.page_header("Мероприятия", "Добавить мероприятие", self.show_add_form),
             self.form_container,
-            ft.Container(content=self.data_table, expand=True)
+            ft.Container(content=self.events_list, expand=True)
         ], spacing=20)
         self.expand = True
         
-        # Загружаем данные
-        self.load_events()
+        # Загружаем данные без update
+        self.events_list.controls.clear()
+        for event in self.events_storage:
+            self.events_list.controls.append(self._create_event_item(event))
     
     def format_event_date(self, e):
         """Форматирование даты мероприятия в формате дд-мм-гггг"""
@@ -125,20 +115,29 @@ class EventsView(ft.Container):
     
     def load_events(self):
         """Загрузка списка мероприятий"""
-        rows = []
-        for i, event in enumerate(self.events_storage, 1):
-            rows.append({
-                "id": event.get('event_id', i),
-                "values": [
-                    str(i),
-                    event.get('name', ''),
-                    event.get('date', ''),
-                    event.get('teacher_name', 'Не назначен'),
-                    str(len(event.get('groups', [])))
+        self.events_list.controls.clear()
+        for event in self.events_storage:
+            self.events_list.controls.append(self._create_event_item(event))
+        if self.page:
+            self.page.update()
+    
+    def _create_event_item(self, event):
+        """Создать элемент списка для мероприятия"""
+        eid = event.get('event_id')
+        return ft.ListTile(
+            leading=ft.Icon(ft.Icons.EVENT),
+            title=ft.Text(event.get('name', '')),
+            subtitle=ft.Text(f"Дата: {event.get('date', '')} | Ответственный: {event.get('teacher_name', 'Не назначен')} | Групп: {len(event.get('groups', []))}"),
+            trailing=ft.PopupMenuButton(
+                icon=ft.Icons.MORE_VERT,
+                tooltip="",
+                items=[
+                    ft.PopupMenuItem(text="Участники", icon=ft.Icons.GROUPS, on_click=lambda _, e=eid: self.view_participants(str(e))),
+                    ft.PopupMenuItem(text="Редактировать", icon=ft.Icons.EDIT, on_click=lambda _, e=eid: self.edit_event(str(e))),
+                    ft.PopupMenuItem(text="Удалить", icon=ft.Icons.DELETE, on_click=lambda _, e=eid: self.delete_event(str(e)))
                 ]
-            })
-        
-        self.data_table.set_rows(rows)
+            )
+        )
     
     def show_add_form(self, e):
         """Показать форму добавления"""
@@ -188,23 +187,18 @@ class EventsView(ft.Container):
         """Удалить мероприятие"""
         def on_yes(e):
             self.events_storage = [event for event in self.events_storage if event['event_id'] != int(event_id)]
-            # Сохраняем в client_storage
             if self.page and hasattr(self.page, 'client_storage'):
                 self.page.client_storage.set("events_storage", self.events_storage)
             self.load_events()
             if self.on_refresh:
                 self.on_refresh()
-            # Закрываем диалог
-            if self.page and self.page.overlay:
-                self.page.overlay.clear()
-                self.page.update()
 
         show_confirm_dialog(
             self.page,
             title="Удаление мероприятия",
             content="Вы уверены, что хотите удалить это мероприятие?",
             on_yes=on_yes,
-            adaptive=True,
+            adaptive=True
         )
     
     def view_participants(self, event_id: str):
@@ -248,7 +242,7 @@ class EventsView(ft.Container):
                 height=300
             ),
             actions=[
-                ft.TextButton("Закрыть", on_click=lambda e: self.close_dialog())
+                ft.TextButton("Закрыть", on_click=lambda e: self.page.close(dialog))
             ]
         )
         
@@ -268,12 +262,6 @@ class EventsView(ft.Container):
             return today.year - birth_date_obj.year - ((today.month, today.day) < (birth_date_obj.month, birth_date_obj.day))
         except:
             return 0
-    
-    def close_dialog(self):
-        """Закрыть диалог"""
-        if self.page and self.page.overlay:
-            self.page.overlay.clear()
-            self.page.update()
     
     def _load_teachers_for_form(self):
         """Загружает список воспитателей в форму"""

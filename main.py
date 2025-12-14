@@ -27,6 +27,15 @@ def main(page: ft.Page):
     page.window.height = WINDOW_HEIGHT
     page.padding = 0
     
+    # Обработчик изменения размера окна
+    def on_resize(e):
+        try:
+            page.update()
+        except:
+            pass
+    
+    page.on_resized = on_resize
+    
     # Загружаем сохраненную тему
     saved_theme = page.client_storage.get("app_theme")
     if saved_theme == "dark":

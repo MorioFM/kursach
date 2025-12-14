@@ -3,7 +3,7 @@
 """
 import flet as ft
 from typing import Callable
-from components import DataTable, SearchBar
+from components import SearchBar
 from dialogs import show_confirm_dialog
 from settings.config import PRIMARY_COLOR
 from pages_styles.styles import AppStyles
@@ -110,25 +110,19 @@ class ParentsView(ft.Container):
         # Поиск
         self.search_bar = SearchBar(on_search=self.on_search, placeholder="Поиск родителей...")
         
-        # Таблица
-        self.data_table = DataTable(
-            columns=["№", "ФИО", "Телефон", "Email", "Адрес"],
-            rows=[],
-            on_edit=self.edit_parent,
-            on_delete=self.delete_parent
-        )
+        # Список родителей
+        self.parents_list = ft.ListView(expand=True, spacing=10, padding=20)
         
-        # Кнопка добавления
-        add_button = AppStyles.primary_button("Добавить родителя", icon=ft.Icons.ADD, on_click=self.show_add_form)
-        
-        # Загружаем данные
-        self.load_parents()
+        # Загружаем данные без update
+        parents = self.db.get_all_parents()
+        for parent in parents:
+            self.parents_list.controls.append(self._create_parent_item(parent))
         
         self.content = AppStyles.form_column([
             AppStyles.page_header("Родители", "Добавить родителя", self.show_add_form),
             self.form_container,
             self.search_bar,
-            self.data_table
+            ft.Container(content=self.parents_list, expand=True)
         ], spacing=20)
         self.expand = True
     
@@ -144,20 +138,27 @@ class ParentsView(ft.Container):
         else:
             parents = self.db.get_all_parents()
         
-        rows = []
-        for i, parent in enumerate(parents, 1):
-            rows.append({
-                "id": parent['parent_id'],
-                "values": [
-                    str(i),
-                    parent.get('full_name', ''),
-                    parent.get('phone', ''),
-                    parent.get('email', ''),
-                    parent.get('address', '')
+        self.parents_list.controls.clear()
+        for parent in parents:
+            self.parents_list.controls.append(self._create_parent_item(parent))
+        if self.page:
+            self.page.update()
+    
+    def _create_parent_item(self, parent):
+        """Создать элемент списка для родителя"""
+        return ft.ListTile(
+            leading=ft.Icon(ft.Icons.PERSON),
+            title=ft.Text(parent.get('full_name', '')),
+            subtitle=ft.Text(f"Тел: {parent.get('phone', 'Не указан')} | Email: {parent.get('email', 'Не указан')}"),
+            trailing=ft.PopupMenuButton(
+                icon=ft.Icons.MORE_VERT,
+                tooltip="",
+                items=[
+                    ft.PopupMenuItem(text="Редактировать", icon=ft.Icons.EDIT, on_click=lambda _, pid=parent['parent_id']: self.edit_parent(str(pid))),
+                    ft.PopupMenuItem(text="Удалить", icon=ft.Icons.DELETE, on_click=lambda _, pid=parent['parent_id']: self.delete_parent(str(pid)))
                 ]
-            })
-        
-        self.data_table.set_rows(rows)
+            )
+        )
     
     def show_add_form(self, e):
         """Показать форму добавления"""

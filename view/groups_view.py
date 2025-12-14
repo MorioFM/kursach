@@ -3,7 +3,7 @@
 """
 import flet as ft
 from typing import Callable
-from components import DataTable, InfoCard
+from components import InfoCard
 from dialogs import show_confirm_dialog
 from settings.config import AGE_CATEGORIES
 from pages_styles.styles import AppStyles
@@ -70,26 +70,13 @@ class GroupsView(ft.Container):
             visible=False
         )
         
-        # Таблица
-        self.data_table = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("№")),
-                ft.DataColumn(ft.Text("Название")),
-                ft.DataColumn(ft.Text("Возрастная категория")),
-                ft.DataColumn(ft.Text("Воспитатель")),
-                ft.DataColumn(ft.Text("Кол-во детей")),
-                ft.DataColumn(ft.Text("Действия"))
-            ],
-            rows=[]
-        )
-        
-        # Кнопка добавления
-        add_button = AppStyles.primary_button("Добавить группу", icon=ft.Icons.ADD, on_click=self.show_add_form)
+        # Список групп
+        self.groups_list = ft.ListView(expand=True, spacing=10, padding=20)
         
         self.content = AppStyles.form_column([
             AppStyles.page_header("Группы", "Добавить группу", self.show_add_form),
             self.form_container,
-            self.data_table
+            ft.Container(content=self.groups_list, expand=True)
         ], spacing=20)
         self.expand = True
     
@@ -131,58 +118,29 @@ class GroupsView(ft.Container):
     def load_groups(self):
         """Загрузка списка групп"""
         groups = self.db.get_all_groups()
-        
-        self.data_table.rows.clear()
-        
-        for i, group in enumerate(groups, 1):
-            teacher_name = group.get('teacher_name', 'Не назначен')
-            teacher_id = group.get('teacher_id')
-            
-            # Получаем актуальное количество детей в группе
-            try:
-                children_in_group = self.db.get_children_by_group(group['group_id'])
-                children_count = len(children_in_group)
-            except Exception:
-                children_count = group.get('children_count', 0)
-
-            # Создаем кликабельное имя воспитателя
-            if teacher_id:
-                teacher_cell = ft.DataCell(
-                    ft.TextButton(
-                        teacher_name,
-                        on_click=lambda e, tid=teacher_id: self.show_teacher_info(tid)
-                    )
-                )
-            else:
-                teacher_cell = ft.DataCell(ft.Text(teacher_name))
-            
-            row = ft.DataRow(
-                cells=[
-                    ft.DataCell(ft.Text(str(i))),
-                    ft.DataCell(ft.Text(group['group_name'])),
-                    ft.DataCell(ft.Text(AGE_CATEGORIES.get(group['age_category'], group['age_category']))),
-                    teacher_cell,
-                    ft.DataCell(ft.Text(str(children_count))),
-                    ft.DataCell(
-                        ft.Row([
-                            ft.IconButton(
-                                icon=ft.Icons.EDIT,
-                                tooltip="Редактировать",
-                                on_click=lambda e, gid=group['group_id']: self.edit_group(str(gid))
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.DELETE,
-                                tooltip="Удалить",
-                                on_click=lambda e, gid=group['group_id']: self.delete_group(str(gid))
-                            )
-                        ], spacing=5)
-                    )
-                ]
-            )
-            self.data_table.rows.append(row)
-        
+        self.groups_list.controls = [self._create_group_item(group) for group in groups]
         if self.page:
             self.page.update()
+    
+    def _create_group_item(self, group):
+        """Создать элемент списка для группы"""
+        teacher_name = group.get('teacher_name', 'Не назначен')
+        try:
+            children_count = len(self.db.get_children_by_group(group['group_id']))
+        except Exception:
+            children_count = group.get('children_count', 0)
+        
+        return ft.ListTile(
+            title=ft.Text(group['group_name'], weight=ft.FontWeight.BOLD),
+            subtitle=ft.Text(f"{AGE_CATEGORIES.get(group['age_category'], group['age_category'])} | {teacher_name} | Детей: {children_count}"),
+            trailing=ft.PopupMenuButton(
+                tooltip="",
+                items=[
+                    ft.PopupMenuItem(text="Редактировать", icon=ft.Icons.EDIT, on_click=lambda _, gid=group['group_id']: self.edit_group(str(gid))),
+                    ft.PopupMenuItem(text="Удалить", icon=ft.Icons.DELETE, on_click=lambda _, gid=group['group_id']: self.delete_group(str(gid)))
+                ]
+            )
+        )
     
     def show_add_form(self, e):
         """Показать форму добавления"""
